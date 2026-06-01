@@ -1,0 +1,17 @@
+# AI tool configs
+.claude/
+CLAUDE.md
+GEMINI.md
+AGENTS.md
+.copilot/
+.github/copilot/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
