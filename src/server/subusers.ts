@@ -53,7 +53,7 @@ function toFail(err: unknown): Fail {
 
 const emailSchema = z.string().email();
 const permissionsSchema = z
-  .array(z.string().regex(/^[a-z_]+\.[a-z_-]+$/))
+  .array(z.string().regex(/^[a-z_]+\.[a-z0-9_-]+$/))
   .min(1);
 
 async function invalidateSubuserScope(pteroUuid: string): Promise<void> {
