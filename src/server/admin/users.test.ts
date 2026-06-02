@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { mswServer } from '@/test/msw/server';
-import type { User } from '@prisma/client';
+import { Prisma, type User } from '@prisma/client';
 
 type CurrentUser = Pick<User, 'id' | 'role' | 'pteroUserId'>;
 type UserData = Record<string, unknown>;
@@ -197,6 +197,114 @@ describe('admin user actions', () => {
 
     expect(res.ok).toBe(false);
     expect(deletedExternal).toBe(true);
+  });
+
+  it('updatePteronUser with only an id is a no-op (no update, no audit)', async () => {
+    const res = await updatePteronUserAction({ id: 'someone' });
+
+    expect(res).toEqual({ ok: true });
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+  });
+
+  it('createPteronUser surfaces a clear message on duplicate email/mapping', async () => {
+    prismaMock.user.create.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: 'test',
+      }),
+    );
+    mswServer.use(
+      http.get(`${BASE}/users`, () =>
+        HttpResponse.json({
+          object: 'list',
+          data: [],
+          meta: {
+            pagination: {
+              total: 0,
+              count: 0,
+              per_page: 50,
+              current_page: 1,
+              total_pages: 1,
+            },
+          },
+        }),
+      ),
+    );
+
+    const res = await createPteronUserAction({
+      email: 'dup@example.com',
+      username: 'dup',
+      password: 'pw12345678',
+      role: 'USER',
+    });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error).toBe('failed');
+      expect(res.detail).toContain('이미 사용 중인');
+    }
+  });
+
+  it('createPteronUser surfaces orphaned Pterodactyl user when compensating delete fails', async () => {
+    prismaMock.user.create.mockRejectedValueOnce(
+      new Error('local create failed'),
+    );
+    mswServer.use(
+      http.get(`${BASE}/users`, () =>
+        HttpResponse.json({
+          object: 'list',
+          data: [],
+          meta: {
+            pagination: {
+              total: 0,
+              count: 0,
+              per_page: 50,
+              current_page: 1,
+              total_pages: 1,
+            },
+          },
+        }),
+      ),
+      http.post(`${BASE}/users`, () =>
+        HttpResponse.json({
+          object: 'user',
+          attributes: {
+            id: 9,
+            uuid: 'u-9',
+            username: 'orphan',
+            email: 'orphan@example.com',
+            first_name: 'Orphan',
+            last_name: 'User',
+            root_admin: false,
+            created_at: '',
+          },
+        }),
+      ),
+      http.delete(`${BASE}/users/9`, () =>
+        HttpResponse.json(
+          {
+            errors: [
+              { code: 'DeleteFailed', status: '500', detail: 'delete failed' },
+            ],
+          },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    const res = await createPteronUserAction({
+      email: 'orphan@example.com',
+      username: 'orphan',
+      password: 'pw12345678',
+      role: 'USER',
+      createPterodactyl: true,
+    });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error).toBe('failed');
+      expect(res.detail).toContain('9');
+    }
   });
 
   it('deletePteronUser reports Pterodactyl delete failure and keeps local user', async () => {

@@ -32,4 +32,31 @@ describe('application.findUserByEmail', () => {
     );
     expect(await findUserByEmail('missing@b.com')).toBeNull();
   });
+
+  it('finds the exact match even when it is on a later page', async () => {
+    mswServer.use(
+      http.get(`${BASE}/users`, ({ request }) => {
+        const url = new URL(request.url);
+        expect(url.searchParams.get('filter[email]')).toBe('a@b.com');
+        const page = Number(url.searchParams.get('page') ?? '1');
+        if (page === 1) {
+          return HttpResponse.json({
+            object: 'list',
+            data: [
+              { object: 'user', attributes: { id: 1, uuid: 'uuid-1', email: 'other@b.com' } },
+            ],
+            meta: { pagination: { total: 2, count: 1, per_page: 1, current_page: 1, total_pages: 2 } },
+          });
+        }
+        return HttpResponse.json({
+          object: 'list',
+          data: [
+            { object: 'user', attributes: { id: 5, uuid: 'uuid-5', email: 'a@b.com' } },
+          ],
+          meta: { pagination: { total: 2, count: 1, per_page: 1, current_page: 2, total_pages: 2 } },
+        });
+      }),
+    );
+    expect(await findUserByEmail('a@b.com')).toEqual({ id: 5, uuid: 'uuid-5' });
+  });
 });

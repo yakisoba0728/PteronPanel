@@ -155,6 +155,14 @@ export function CreateWizard() {
       setMsg('선택한 Egg 정보를 불러온 뒤 생성할 수 있습니다.');
       return;
     }
+    const missingRequired = variables
+      .filter((variable) => variable.rules.split('|').includes('required'))
+      .filter((variable) => !env[variable.env_variable]?.trim())
+      .map((variable) => variable.name);
+    if (missingRequired.length > 0) {
+      setMsg(`필수 환경변수를 입력하세요: ${missingRequired.join(', ')}`);
+      return;
+    }
     setBusy(true);
     const res = await createServerAction({
       name: form.name,
@@ -190,7 +198,10 @@ export function CreateWizard() {
     }
   }
 
-  const num = (value: string) => Number(value.replace(/[^0-9-]/g, '') || 0);
+  const num = (value: string) => {
+    const n = parseInt(value.replace(/[^0-9-]/g, ''), 10);
+    return Number.isFinite(n) ? n : 0;
+  };
 
   return (
     <form onSubmit={submit} className="space-y-4">

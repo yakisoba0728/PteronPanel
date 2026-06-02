@@ -84,10 +84,15 @@ export async function paginateAll<A>(
 export async function findUserByEmail(
   email: string
 ): Promise<{ id: number; uuid: string } | null> {
-  const res = await pteroFetch<PteroList<AppUserAttrs>>('application', '/users', {
-    query: { 'filter[email]': email },
-  });
-  const match = res.data.find((user) => user.attributes.email.toLowerCase() === email.toLowerCase());
+  const items = await paginateAll<AppUserAttrs>((page) =>
+    pteroFetch('application', '/users', {
+      query: { 'filter[email]': email, page },
+    }),
+  );
+  const target = email.toLowerCase();
+  const match = items.find(
+    (user) => user.attributes.email.toLowerCase() === target,
+  );
   return match ? { id: match.attributes.id, uuid: match.attributes.uuid } : null;
 }
 
