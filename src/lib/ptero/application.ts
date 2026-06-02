@@ -16,6 +16,12 @@ interface AppServerAttrs {
   node?: number;
 }
 
+interface AppUserAttrs {
+  id: number;
+  uuid: string;
+  email: string;
+}
+
 function toAccessible(attrs: AppServerAttrs): AccessibleServer {
   return {
     identifier: asIdentifier(attrs.identifier),
@@ -49,4 +55,15 @@ export async function paginateAll<A>(
   }
 
   return items;
+}
+
+/** Find a Pterodactyl user by exact email (for mapping Pteron accounts). */
+export async function findUserByEmail(
+  email: string
+): Promise<{ id: number; uuid: string } | null> {
+  const res = await pteroFetch<PteroList<AppUserAttrs>>('application', '/users', {
+    query: { 'filter[email]': email },
+  });
+  const match = res.data.find((user) => user.attributes.email.toLowerCase() === email.toLowerCase());
+  return match ? { id: match.attributes.id, uuid: match.attributes.uuid } : null;
 }
