@@ -32,6 +32,10 @@ test('admin sees scope sync button', async ({ page }) => {
 });
 
 test('admin sync exposes subuser servers to USER scope', async ({ page }) => {
+  await login(page, 'user', 'user-pass');
+  await expect(page.getByText('Shared Server')).toHaveCount(0);
+  await logout(page);
+
   await login(page, 'admin', 'admin-pass');
   await page.goto('/admin');
   await page.getByRole('button', { name: '서브유저 접근 동기화' }).click();

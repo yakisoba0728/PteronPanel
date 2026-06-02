@@ -65,6 +65,40 @@ describe('client schedules', () => {
     expect(s[0].tasks[0]).toMatchObject({ action: 'backup', sequence_id: 1 });
   });
 
+  it('listSchedules paginates all pages', async () => {
+    mswServer.use(
+      http.get(`${BASE}/servers/1a2b3c4d/schedules`, ({ request }) => {
+        const page = new URL(request.url).searchParams.get('page');
+        return HttpResponse.json({
+          object: 'list',
+          data: [
+            {
+              object: 'server_schedule',
+              attributes: schedAttrs({
+                id: page === '2' ? 12 : 11,
+                name: page === '2' ? 'second' : 'first',
+              }),
+            },
+          ],
+          meta: {
+            pagination: {
+              total: 2,
+              count: 1,
+              per_page: 1,
+              current_page: Number(page),
+              total_pages: 2,
+            },
+          },
+        });
+      }),
+    );
+
+    expect((await listSchedules(id)).map((schedule) => schedule.name)).toEqual([
+      'first',
+      'second',
+    ]);
+  });
+
   it('createSchedule posts cron fields', async () => {
     let body: unknown;
     mswServer.use(

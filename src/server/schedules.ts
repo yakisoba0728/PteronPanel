@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { audit } from '@/lib/audit';
 import { requireUser } from '@/lib/auth/current-user';
 import type { ScopeUser } from '@/lib/authz/access';
-import { requireServerAccess, ServerAccessDeniedError } from '@/lib/authz/guard';
+import { requireServerPermission, ServerAccessDeniedError } from '@/lib/authz/guard';
 import * as ptero from '@/lib/ptero/client';
 import { PteroApiError } from '@/lib/ptero/errors';
 import {
@@ -29,10 +29,10 @@ type Fail = {
 };
 type Ok<T extends object = object> = { ok: true } & T;
 
-async function guard(identifier: string) {
+async function guard(identifier: string, permission: string) {
   const user = await requireUser();
   const id = asIdentifier(identifier);
-  await requireServerAccess(scope(user), id);
+  await requireServerPermission(scope(user), id, permission);
   return { user, id };
 }
 
@@ -76,7 +76,7 @@ export async function listSchedulesAction(
   identifier: string,
 ): Promise<Ok<{ schedules: ServerSchedule[] }> | Fail> {
   try {
-    const { id } = await guard(identifier);
+    const { id } = await guard(identifier, 'schedule.read');
     return { ok: true, schedules: await ptero.listSchedules(id) };
   } catch (err) {
     return toFail(err);
@@ -88,7 +88,7 @@ export async function createScheduleAction(
   input: z.infer<typeof scheduleSchema>,
 ): Promise<Ok<{ schedule: ServerSchedule }> | Fail> {
   try {
-    const { user, id } = await guard(identifier);
+    const { user, id } = await guard(identifier, 'schedule.create');
     const data = scheduleSchema.parse(input);
     const schedule = await ptero.createSchedule(id, data);
     await audit('schedule.create', {
@@ -108,7 +108,7 @@ export async function updateScheduleAction(
   input: z.infer<typeof scheduleSchema>,
 ): Promise<Ok<{ schedule: ServerSchedule }> | Fail> {
   try {
-    const { user, id } = await guard(identifier);
+    const { user, id } = await guard(identifier, 'schedule.update');
     const data = scheduleSchema.parse(input);
     const schedule = await ptero.updateSchedule(id, schedId, data);
     await audit('schedule.update', {
@@ -127,7 +127,7 @@ export async function executeScheduleAction(
   schedId: number,
 ): Promise<Ok | Fail> {
   try {
-    const { user, id } = await guard(identifier);
+    const { user, id } = await guard(identifier, 'schedule.update');
     await ptero.executeSchedule(id, schedId);
     await audit('schedule.execute', {
       userId: user.id,
@@ -145,7 +145,7 @@ export async function deleteScheduleAction(
   schedId: number,
 ): Promise<Ok | Fail> {
   try {
-    const { user, id } = await guard(identifier);
+    const { user, id } = await guard(identifier, 'schedule.delete');
     await ptero.deleteSchedule(id, schedId);
     await audit('schedule.delete', {
       userId: user.id,
@@ -164,7 +164,7 @@ export async function createTaskAction(
   input: z.infer<typeof taskSchema>,
 ): Promise<Ok<{ task: ScheduleTask }> | Fail> {
   try {
-    const { user, id } = await guard(identifier);
+    const { user, id } = await guard(identifier, 'schedule.update');
     const data = taskSchema.parse(input);
     const task = await ptero.createTask(id, schedId, data);
     await audit('schedule.task.create', {
@@ -185,7 +185,7 @@ export async function updateTaskAction(
   input: z.infer<typeof taskSchema>,
 ): Promise<Ok<{ task: ScheduleTask }> | Fail> {
   try {
-    const { user, id } = await guard(identifier);
+    const { user, id } = await guard(identifier, 'schedule.update');
     const data = taskSchema.parse(input);
     const task = await ptero.updateTask(id, schedId, taskId, data);
     await audit('schedule.task.update', {
@@ -205,7 +205,7 @@ export async function deleteTaskAction(
   taskId: number,
 ): Promise<Ok | Fail> {
   try {
-    const { user, id } = await guard(identifier);
+    const { user, id } = await guard(identifier, 'schedule.update');
     await ptero.deleteTask(id, schedId, taskId);
     await audit('schedule.task.delete', {
       userId: user.id,

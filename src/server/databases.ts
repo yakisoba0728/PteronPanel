@@ -4,7 +4,7 @@ import type { Prisma, User } from '@prisma/client';
 import { z, type ZodError, type ZodType } from 'zod';
 import { requireUser } from '@/lib/auth/current-user';
 import type { ScopeUser } from '@/lib/authz/access';
-import { requireServerAccess, ServerAccessDeniedError } from '@/lib/authz/guard';
+import { requireServerPermission, ServerAccessDeniedError } from '@/lib/authz/guard';
 import * as ptero from '@/lib/ptero/client';
 import { PteroApiError } from '@/lib/ptero/errors';
 import { asIdentifier, type ServerDatabase } from '@/lib/ptero/types';
@@ -43,10 +43,10 @@ const databaseIdInputSchema = z.object({
   dbId: pathIdSchema,
 });
 
-async function guard(identifier: string) {
+async function guard(identifier: string, permission: string) {
   const user = await requireUser();
   const id = asIdentifier(identifier);
-  await requireServerAccess(scope(user), id);
+  await requireServerPermission(scope(user), id, permission);
   return { user, id };
 }
 
@@ -91,7 +91,7 @@ export async function listDatabasesAction(
   try {
     const input = validateInput(listInputSchema, { identifier });
     if ('ok' in input) return input;
-    const { id } = await guard(input.identifier);
+    const { id } = await guard(input.identifier, 'database.read');
     return { ok: true, databases: await ptero.listDatabases(id) };
   } catch (err) {
     return toFail(err);
@@ -110,7 +110,7 @@ export async function createDatabaseAction(
       remote,
     });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'database.create');
     const created = await ptero.createDatabase(id, {
       database: input.database,
       remote: input.remote || '%',
@@ -133,7 +133,7 @@ export async function rotateDatabasePasswordAction(
   try {
     const input = validateInput(databaseIdInputSchema, { identifier, dbId });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'database.update');
     const database = await ptero.rotateDatabasePassword(id, input.dbId);
     await auditAction('database.rotate', {
       userId: user.id,
@@ -153,7 +153,7 @@ export async function deleteDatabaseAction(
   try {
     const input = validateInput(databaseIdInputSchema, { identifier, dbId });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'database.delete');
     await ptero.deleteDatabase(id, input.dbId);
     await auditAction('database.delete', {
       userId: user.id,

@@ -14,13 +14,15 @@ export interface ScopeUser {
   pteroUserId: number | null;
 }
 
-// Per-user accessible-server lists. Bound the cache so a long-lived process
-// with many distinct users cannot grow it without limit (TTL + LRU eviction).
+// Admin-wide server lists are cacheable. USER scope includes revocable
+// ServerAccess rows, so it is resolved live to avoid stale subuser access.
 const cache = new TtlCache<string, AccessibleServer[]>(45_000, 5_000);
 
 export async function resolveAccessibleServers(user: ScopeUser): Promise<AccessibleServer[]> {
-  const hit = cache.get(user.id);
-  if (hit) return hit;
+  if (user.role === 'ADMIN') {
+    const hit = cache.get(user.id);
+    if (hit) return hit;
+  }
 
   let servers: AccessibleServer[];
   if (user.role === 'ADMIN') {
@@ -47,6 +49,8 @@ export async function resolveAccessibleServers(user: ScopeUser): Promise<Accessi
                 identifier: asIdentifier(row.serverIdentifier),
                 uuid: asUuid(row.serverUuid),
                 name: row.serverName,
+                accessKind: 'subuser',
+                permissions: row.permissions,
               },
             ];
           } catch (error) {
@@ -64,7 +68,9 @@ export async function resolveAccessibleServers(user: ScopeUser): Promise<Accessi
     servers = [];
   }
 
-  cache.set(user.id, servers);
+  if (user.role === 'ADMIN') {
+    cache.set(user.id, servers);
+  }
   return servers;
 }
 

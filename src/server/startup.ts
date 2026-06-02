@@ -4,7 +4,7 @@ import type { Prisma, User } from '@prisma/client';
 import { z, type ZodError, type ZodType } from 'zod';
 import { requireUser } from '@/lib/auth/current-user';
 import type { ScopeUser } from '@/lib/authz/access';
-import { requireServerAccess, ServerAccessDeniedError } from '@/lib/authz/guard';
+import { requireServerPermission, ServerAccessDeniedError } from '@/lib/authz/guard';
 import * as ptero from '@/lib/ptero/client';
 import { PteroApiError } from '@/lib/ptero/errors';
 import { asIdentifier, type StartupVariable } from '@/lib/ptero/types';
@@ -34,10 +34,10 @@ const updateInputSchema = z.object({
   value: variableValueSchema,
 });
 
-async function guard(identifier: string) {
+async function guard(identifier: string, permission: string) {
   const user = await requireUser();
   const id = asIdentifier(identifier);
-  await requireServerAccess(scope(user), id);
+  await requireServerPermission(scope(user), id, permission);
   return { user, id };
 }
 
@@ -82,7 +82,7 @@ export async function getStartupAction(
   try {
     const input = validateInput(listInputSchema, { identifier });
     if ('ok' in input) return input;
-    const { id } = await guard(input.identifier);
+    const { id } = await guard(input.identifier, 'startup.read');
     return { ok: true, variables: await ptero.getStartupVariables(id) };
   } catch (err) {
     return toFail(err);
@@ -97,7 +97,7 @@ export async function updateStartupVariableAction(
   try {
     const input = validateInput(updateInputSchema, { identifier, key, value });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'startup.update');
     await ptero.updateStartupVariable(id, input.key, input.value);
     await auditAction('startup.update', {
       userId: user.id,

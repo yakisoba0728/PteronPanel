@@ -4,7 +4,7 @@ import type { Prisma, User } from '@prisma/client';
 import { z, type ZodError, type ZodType } from 'zod';
 import { requireUser } from '@/lib/auth/current-user';
 import type { ScopeUser } from '@/lib/authz/access';
-import { requireServerAccess, ServerAccessDeniedError } from '@/lib/authz/guard';
+import { requireServerPermission, ServerAccessDeniedError } from '@/lib/authz/guard';
 import * as ptero from '@/lib/ptero/client';
 import { PteroApiError } from '@/lib/ptero/errors';
 import { asIdentifier, type FileEntry } from '@/lib/ptero/types';
@@ -76,10 +76,10 @@ const pullInputSchema = z.object({
   }),
 });
 
-async function guard(identifier: string) {
+async function guard(identifier: string, permission: string) {
   const user = await requireUser();
   const id = asIdentifier(identifier);
-  await requireServerAccess(scope(user), id);
+  await requireServerPermission(scope(user), id, permission);
   return { user, id };
 }
 
@@ -158,7 +158,7 @@ export async function listFilesAction(
   try {
     const input = validateInput(listInputSchema, { identifier, directory });
     if ('ok' in input) return input;
-    const { id } = await guard(input.identifier);
+    const { id } = await guard(input.identifier, 'file.read');
     return { ok: true, entries: await ptero.listFiles(id, input.directory) };
   } catch (err) {
     return toFail(err);
@@ -172,7 +172,7 @@ export async function readFileAction(
   try {
     const input = validateInput(pathInputSchema, { identifier, file });
     if ('ok' in input) return input;
-    const { id } = await guard(input.identifier);
+    const { id } = await guard(input.identifier, 'file.read');
     const content = await ptero.getFileContents(id, input.file);
     const invalidContent = validateFileContent(content);
     if (invalidContent) return invalidContent;
@@ -192,7 +192,7 @@ export async function writeFileAction(
     if ('ok' in input) return input;
     const invalidContent = validateFileContent(input.content);
     if (invalidContent) return invalidContent;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'file.update');
     await ptero.writeFile(id, input.file, input.content);
     await auditAction('file.write', {
       userId: user.id,
@@ -213,7 +213,7 @@ export async function deleteFilesAction(
   try {
     const input = validateInput(rootFilesInputSchema, { identifier, root, files });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'file.delete');
     await ptero.deleteFiles(id, input.root, input.files);
     await auditAction('file.delete', {
       userId: user.id,
@@ -234,7 +234,7 @@ export async function createFolderAction(
   try {
     const input = validateInput(folderInputSchema, { identifier, root, name });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'file.create');
     await ptero.createFolder(id, input.root, input.name);
     await auditAction('file.create_folder', {
       userId: user.id,
@@ -255,7 +255,7 @@ export async function renameAction(
   try {
     const input = validateInput(renameInputSchema, { identifier, root, files });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'file.update');
     await ptero.renameFiles(id, input.root, input.files);
     await auditAction('file.rename', {
       userId: user.id,
@@ -275,7 +275,7 @@ export async function copyAction(
   try {
     const input = validateInput(pathInputSchema, { identifier, file: location });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'file.update');
     await ptero.copyFile(id, input.file);
     await auditAction('file.copy', {
       userId: user.id,
@@ -296,7 +296,7 @@ export async function compressAction(
   try {
     const input = validateInput(rootFilesInputSchema, { identifier, root, files });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'file.archive');
     const archive = await ptero.compressFiles(id, input.root, input.files);
     await auditAction('file.compress', {
       userId: user.id,
@@ -317,7 +317,7 @@ export async function decompressAction(
   try {
     const input = validateInput(decompressInputSchema, { identifier, root, file });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'file.archive');
     await ptero.decompressFile(id, input.root, input.file);
     await auditAction('file.decompress', {
       userId: user.id,
@@ -338,7 +338,7 @@ export async function chmodAction(
   try {
     const input = validateInput(chmodInputSchema, { identifier, root, files });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'file.update');
     await ptero.chmodFiles(id, input.root, input.files);
     await auditAction('file.chmod', {
       userId: user.id,
@@ -358,7 +358,7 @@ export async function pullAction(
   try {
     const input = validateInput(pullInputSchema, { identifier, opts });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'file.create');
     await ptero.pullRemoteFile(id, input.opts);
     await auditAction('file.pull', {
       userId: user.id,
@@ -378,7 +378,7 @@ export async function getDownloadUrlAction(
   try {
     const input = validateInput(pathInputSchema, { identifier, file });
     if ('ok' in input) return input;
-    const { id } = await guard(input.identifier);
+    const { id } = await guard(input.identifier, 'file.read');
     return { ok: true, url: await ptero.getFileDownloadUrl(id, input.file) };
   } catch (err) {
     return toFail(err);
@@ -391,7 +391,7 @@ export async function getUploadUrlAction(
   try {
     const input = validateInput(z.object({ identifier: identifierSchema }), { identifier });
     if ('ok' in input) return input;
-    const { id } = await guard(input.identifier);
+    const { id } = await guard(input.identifier, 'file.create');
     return { ok: true, url: await ptero.getFileUploadUrl(id) };
   } catch (err) {
     return toFail(err);

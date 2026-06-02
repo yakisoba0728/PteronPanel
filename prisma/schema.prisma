@@ -60,6 +60,7 @@ model ServerAccess {
   serverIdentifier String
   serverUuid       String
   serverName       String
+  permissions      String[] @default([])
   syncedAt         DateTime @default(now())
 
   @@unique([pteroUuid, serverIdentifier])

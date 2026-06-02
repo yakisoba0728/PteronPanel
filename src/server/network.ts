@@ -4,7 +4,7 @@ import type { Prisma, User } from '@prisma/client';
 import { z, type ZodError, type ZodType } from 'zod';
 import { requireUser } from '@/lib/auth/current-user';
 import type { ScopeUser } from '@/lib/authz/access';
-import { requireServerAccess, ServerAccessDeniedError } from '@/lib/authz/guard';
+import { requireServerPermission, ServerAccessDeniedError } from '@/lib/authz/guard';
 import * as ptero from '@/lib/ptero/client';
 import { PteroApiError } from '@/lib/ptero/errors';
 import { asIdentifier, type ServerAllocation } from '@/lib/ptero/types';
@@ -31,10 +31,10 @@ const allocationInputSchema = z.object({
 });
 const noteInputSchema = allocationInputSchema.extend({ notes: notesSchema });
 
-async function guard(identifier: string) {
+async function guard(identifier: string, permission: string) {
   const user = await requireUser();
   const id = asIdentifier(identifier);
-  await requireServerAccess(scope(user), id);
+  await requireServerPermission(scope(user), id, permission);
   return { user, id };
 }
 
@@ -79,7 +79,7 @@ export async function listAllocationsAction(
   try {
     const input = validateInput(listInputSchema, { identifier });
     if ('ok' in input) return input;
-    const { id } = await guard(input.identifier);
+    const { id } = await guard(input.identifier, 'allocation.read');
     return { ok: true, allocations: await ptero.listAllocations(id) };
   } catch (err) {
     return toFail(err);
@@ -92,7 +92,7 @@ export async function assignAllocationAction(
   try {
     const input = validateInput(listInputSchema, { identifier });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'allocation.create');
     const allocation = await ptero.assignAllocation(id);
     await auditAction('network.assign', { userId: user.id, target: id });
     return { ok: true, allocation };
@@ -109,7 +109,7 @@ export async function setAllocationNoteAction(
   try {
     const input = validateInput(noteInputSchema, { identifier, allocId, notes });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'allocation.update');
     await ptero.setAllocationNote(id, input.allocId, input.notes);
     await auditAction('network.note', {
       userId: user.id,
@@ -129,7 +129,7 @@ export async function setPrimaryAllocationAction(
   try {
     const input = validateInput(allocationInputSchema, { identifier, allocId });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'allocation.update');
     await ptero.setPrimaryAllocation(id, input.allocId);
     await auditAction('network.primary', {
       userId: user.id,
@@ -149,7 +149,7 @@ export async function deleteAllocationAction(
   try {
     const input = validateInput(allocationInputSchema, { identifier, allocId });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'allocation.delete');
     const allocations = await ptero.listAllocations(id);
     const allocation = allocations.find((item) => item.id === input.allocId);
     if (allocation?.is_default) {

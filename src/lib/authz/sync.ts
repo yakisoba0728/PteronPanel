@@ -42,6 +42,7 @@ export async function syncServerAccess(
         update: {
           serverUuid: server.uuid,
           serverName: server.name,
+          permissions: subuser.permissions,
           syncedAt: now,
         },
         create: {
@@ -49,6 +50,7 @@ export async function syncServerAccess(
           serverIdentifier: server.identifier,
           serverUuid: server.uuid,
           serverName: server.name,
+          permissions: subuser.permissions,
           syncedAt: now,
         },
       });

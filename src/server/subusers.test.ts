@@ -6,6 +6,15 @@ import { invalidateAccessCache } from '@/lib/authz/access';
 const { audit } = vi.hoisted(() => ({
   audit: vi.fn(),
 }));
+const prismaMock = vi.hoisted(() => ({
+  user: {
+    findMany: vi.fn(async () => [{ id: 'local-subuser' }]),
+  },
+  serverAccess: {
+    upsert: vi.fn(async () => ({})),
+    deleteMany: vi.fn(async () => ({ count: 1 })),
+  },
+}));
 
 vi.mock('@/lib/auth/current-user', () => ({
   requireUser: vi.fn(async () => ({
@@ -16,6 +25,7 @@ vi.mock('@/lib/auth/current-user', () => ({
 }));
 
 vi.mock('@/lib/audit', () => ({ audit }));
+vi.mock('@/lib/db', () => ({ prisma: prismaMock }));
 
 import {
   listSubusersAction,
@@ -121,5 +131,25 @@ describe('subuser actions', () => {
       'control.console',
     ]);
     expect(res.ok).toBe(false);
+  });
+
+  it('deleteSubuser removes the ServerAccess cache row immediately', async () => {
+    adminLists('1a2b3c4d');
+    mswServer.use(
+      http.delete(`${CLIENT}/servers/1a2b3c4d/users/sub-uuid`, () =>
+        new HttpResponse(null, { status: 204 }),
+      ),
+    );
+
+    await expect(deleteSubuserAction('1a2b3c4d', 'sub-uuid')).resolves.toEqual({
+      ok: true,
+    });
+    expect(prismaMock.serverAccess.deleteMany).toHaveBeenCalledWith({
+      where: { pteroUuid: 'sub-uuid', serverIdentifier: '1a2b3c4d' },
+    });
+    expect(prismaMock.user.findMany).toHaveBeenCalledWith({
+      where: { pteroUuid: 'sub-uuid' },
+      select: { id: true },
+    });
   });
 });

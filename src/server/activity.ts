@@ -4,7 +4,7 @@ import type { User } from '@prisma/client';
 import { z, type ZodError, type ZodType } from 'zod';
 import { requireUser } from '@/lib/auth/current-user';
 import type { ScopeUser } from '@/lib/authz/access';
-import { requireServerAccess, ServerAccessDeniedError } from '@/lib/authz/guard';
+import { requireServerPermission, ServerAccessDeniedError } from '@/lib/authz/guard';
 import * as ptero from '@/lib/ptero/client';
 import { PteroApiError } from '@/lib/ptero/errors';
 import { asIdentifier, type ActivityEntry } from '@/lib/ptero/types';
@@ -27,7 +27,7 @@ const listInputSchema = z.object({ identifier: identifierSchema });
 async function guard(identifier: string) {
   const user = await requireUser();
   const id = asIdentifier(identifier);
-  await requireServerAccess(scope(user), id);
+  await requireServerPermission(scope(user), id, 'activity.read');
   return { id };
 }
 

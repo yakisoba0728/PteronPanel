@@ -41,6 +41,7 @@ function toAccessible(attrs: ClientServerAttrs): AccessibleServer {
       attrs.internal_id !== undefined ? asNumericId(attrs.internal_id) : undefined,
     name: attrs.name,
     node: attrs.node,
+    accessKind: 'admin',
   };
 }
 
@@ -445,13 +446,24 @@ function mapSchedule(attrs: SchedAttrs): ServerSchedule {
 export async function listSchedules(
   id: ServerIdentifier,
 ): Promise<ServerSchedule[]> {
-  const response = await pteroFetch<PteroList<SchedAttrs>>(
+  const first = await pteroFetch<PteroList<SchedAttrs>>(
     'client',
     `/servers/${id}/schedules`,
-    { query: { include: 'tasks' } },
+    { query: { include: 'tasks', per_page: 50, page: 1 } },
   );
+  const data = [...first.data];
+  const totalPages = first.meta?.pagination?.total_pages ?? 1;
 
-  return response.data.map((item) => mapSchedule(item.attributes));
+  for (let page = 2; page <= totalPages; page += 1) {
+    const next = await pteroFetch<PteroList<SchedAttrs>>(
+      'client',
+      `/servers/${id}/schedules`,
+      { query: { include: 'tasks', per_page: 50, page } },
+    );
+    data.push(...next.data);
+  }
+
+  return data.map((item) => mapSchedule(item.attributes));
 }
 
 export async function createSchedule(
@@ -543,12 +555,24 @@ export async function deleteTask(
 }
 
 export async function listSubusers(id: ServerIdentifier): Promise<Subuser[]> {
-  const response = await pteroFetch<PteroList<Subuser>>(
+  const first = await pteroFetch<PteroList<Subuser>>(
     'client',
     `/servers/${id}/users`,
+    { query: { per_page: 50, page: 1 } },
   );
+  const data = [...first.data];
+  const totalPages = first.meta?.pagination?.total_pages ?? 1;
 
-  return response.data.map((item) => item.attributes);
+  for (let page = 2; page <= totalPages; page += 1) {
+    const next = await pteroFetch<PteroList<Subuser>>(
+      'client',
+      `/servers/${id}/users`,
+      { query: { per_page: 50, page } },
+    );
+    data.push(...next.data);
+  }
+
+  return data.map((item) => item.attributes);
 }
 
 export async function createSubuser(

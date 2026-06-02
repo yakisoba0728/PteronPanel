@@ -52,6 +52,8 @@ export interface AccessibleServer {
   numericId?: ServerNumericId;
   name: string;
   node?: string;
+  accessKind?: 'admin' | 'owner' | 'subuser';
+  permissions?: string[];
 }
 
 export interface ServerResources {

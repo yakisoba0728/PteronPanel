@@ -58,7 +58,7 @@ describe('syncServerAccess', () => {
                 username: 'b',
                 email: 'b@x.com',
                 image: '',
-                permissions: [],
+                permissions: ['control.console'],
               },
             },
           ],
@@ -81,12 +81,14 @@ describe('syncServerAccess', () => {
         update: expect.objectContaining({
           syncedAt: now,
           serverName: 'Alpha',
+          permissions: ['control.console'],
         }),
         create: expect.objectContaining({
           pteroUuid: 'sub-1',
           serverIdentifier: '1a2b3c4d',
           serverUuid: '1a2b3c4d-0000-4000-8000-000000000000',
           serverName: 'Alpha',
+          permissions: ['control.console'],
           syncedAt: now,
         }),
       }),

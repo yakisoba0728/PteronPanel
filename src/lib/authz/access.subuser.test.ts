@@ -12,6 +12,7 @@ const prismaMock = vi.hoisted(() => ({
         serverIdentifier: 'bbbbbbbb',
         serverUuid: 'bbbbbbbb-0000-4000-8000-000000000000',
         serverName: 'Shared',
+        permissions: ['control.console'],
       },
     ]),
   },
@@ -34,6 +35,7 @@ beforeEach(() => {
       serverIdentifier: 'bbbbbbbb',
       serverUuid: 'bbbbbbbb-0000-4000-8000-000000000000',
       serverName: 'Shared',
+      permissions: ['control.console'],
     },
   ]);
 });
@@ -77,6 +79,10 @@ describe('resolveAccessibleServers with subuser scope', () => {
       'aaaaaaaa',
       'bbbbbbbb',
     ]);
+    expect(out.find((server) => server.identifier === 'bbbbbbbb')).toMatchObject({
+      accessKind: 'subuser',
+      permissions: ['control.console'],
+    });
   });
 
   it('does not duplicate a server that is both owned and a subuser row', async () => {
@@ -85,6 +91,7 @@ describe('resolveAccessibleServers with subuser scope', () => {
         serverIdentifier: 'aaaaaaaa',
         serverUuid: 'aaaaaaaa-0000-4000-8000-000000000000',
         serverName: 'Owned',
+        permissions: ['control.console'],
       },
     ]);
     mswServer.use(http.get(`${APP}/users/7`, () => ownedResponse()));

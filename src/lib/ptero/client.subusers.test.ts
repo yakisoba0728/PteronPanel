@@ -38,6 +38,37 @@ describe('client subusers', () => {
     });
   });
 
+  it('listSubusers paginates all pages', async () => {
+    mswServer.use(
+      http.get(`${BASE}/servers/1a2b3c4d/users`, ({ request }) => {
+        const page = new URL(request.url).searchParams.get('page');
+        return HttpResponse.json({
+          object: 'list',
+          data: [
+            sub({
+              uuid: page === '2' ? 'sub-2' : 'sub-1',
+              email: page === '2' ? 'two@x.com' : 'one@x.com',
+            }),
+          ],
+          meta: {
+            pagination: {
+              total: 2,
+              count: 1,
+              per_page: 1,
+              current_page: Number(page),
+              total_pages: 2,
+            },
+          },
+        });
+      }),
+    );
+
+    expect((await listSubusers(id)).map((item) => item.email)).toEqual([
+      'one@x.com',
+      'two@x.com',
+    ]);
+  });
+
   it('createSubuser posts {email, permissions}', async () => {
     let body: unknown;
     mswServer.use(
