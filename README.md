@@ -48,6 +48,27 @@ docker compose run --rm seed
 `APP_BASE_URL`은 실제 접속 origin과 일치해야 합니다. 리버스 프록시 뒤에 둘 경우 TLS 종료 지점의 public URL로 맞추세요.
 Docker Compose에서는 `DATABASE_URL`의 호스트가 `db`여야 합니다. 호스트 머신에서 직접 `pnpm prisma migrate dev`를 실행하는 개발 환경에서는 `.env`의 DB 호스트를 `localhost`로 바꾸세요.
 
+## 운영 및 보안
+
+앱은 모든 경로에 기본 보안 헤더를 설정합니다.
+
+- `X-Frame-Options: DENY`
+- `X-Content-Type-Options: nosniff`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Permissions-Policy: geolocation=(), microphone=(), camera=()`
+
+`/api/health`는 데이터베이스 연결을 확인하는 상태 엔드포인트입니다. 정상일 때 `{ "status": "ok" }`를 반환하고, DB 확인이 실패하면 HTTP 503과 `{ "status": "degraded" }`를 반환합니다. Docker Compose의 `app` 서비스 헬스체크도 이 엔드포인트를 사용합니다.
+
+프로덕션 체크리스트:
+
+- `PTERO_APP_KEY`와 `PTERO_CLIENT_KEY`는 서버 전용으로만 보관하고, 브라우저 응답/번들/로그에 노출하지 않습니다.
+- 두 Pterodactyl 키는 가능한 경우 Pterodactyl Panel에서 앱 서버의 고정 IP만 허용하도록 제한합니다.
+- 앱 서버의 egress는 Pterodactyl Panel, Wings 노드, 데이터베이스 등 필요한 대상만 허용합니다.
+- HTTPS를 강제하고 `APP_BASE_URL`은 실제 public origin과 정확히 일치하게 설정합니다.
+- 콘솔을 사용하는 모든 Wings 노드의 `allowed_origins`에 Pteron Panel의 HTTPS origin을 추가합니다.
+- `SESSION_SECRET`은 충분히 긴 무작위 값으로 설정하고 저장소나 이미지에 포함하지 않습니다.
+- 서브유저 권한 변경이 Pterodactyl에서 발생한 뒤에는 정기적으로 접근 스코프 동기화를 실행합니다.
+
 ## 개발
 
 ```bash
