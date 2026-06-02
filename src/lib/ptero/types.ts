@@ -242,3 +242,12 @@ export interface ServerDatabase {
   max_connections: number;
   password?: string;
 }
+
+export interface ServerAllocation {
+  id: number;
+  ip: string;
+  ip_alias: string | null;
+  port: number;
+  notes: string | null;
+  is_default: boolean;
+}

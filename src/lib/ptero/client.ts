@@ -9,6 +9,7 @@ import {
   type PowerSignal,
   type PteroItem,
   type PteroList,
+  type ServerAllocation,
   type ServerDatabase,
   type ServerIdentifier,
   type ServerResources,
@@ -463,6 +464,65 @@ export async function deleteDatabase(
   dbId: string,
 ): Promise<void> {
   await pteroFetch('client', `/servers/${id}/databases/${dbId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function listAllocations(
+  id: ServerIdentifier,
+): Promise<ServerAllocation[]> {
+  const response = await pteroFetch<PteroList<ServerAllocation>>(
+    'client',
+    `/servers/${id}/network/allocations`,
+  );
+
+  return response.data.map((item) => item.attributes);
+}
+
+export async function assignAllocation(
+  id: ServerIdentifier,
+): Promise<ServerAllocation> {
+  const response = await pteroFetch<PteroItem<ServerAllocation>>(
+    'client',
+    `/servers/${id}/network/allocations`,
+    { method: 'POST' },
+  );
+
+  return response.attributes;
+}
+
+export async function setAllocationNote(
+  id: ServerIdentifier,
+  allocId: number,
+  notes: string,
+): Promise<ServerAllocation> {
+  const response = await pteroFetch<PteroItem<ServerAllocation>>(
+    'client',
+    `/servers/${id}/network/allocations/${allocId}`,
+    { method: 'POST', body: { notes } },
+  );
+
+  return response.attributes;
+}
+
+export async function setPrimaryAllocation(
+  id: ServerIdentifier,
+  allocId: number,
+): Promise<ServerAllocation> {
+  const response = await pteroFetch<PteroItem<ServerAllocation>>(
+    'client',
+    `/servers/${id}/network/allocations/${allocId}/primary`,
+    { method: 'POST' },
+  );
+
+  return response.attributes;
+}
+
+export async function deleteAllocation(
+  id: ServerIdentifier,
+  allocId: number,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/network/allocations/${allocId}`, {
     method: 'DELETE',
   });
 }
