@@ -22,6 +22,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://pteron:${DB_PASSWORD:-pteron}@db:5432/pteron?schema=public
+      PRISMA_HIDE_UPDATE_MESSAGE: "1"
     depends_on:
       db:
         condition: service_healthy
@@ -34,6 +35,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://pteron:${DB_PASSWORD:-pteron}@db:5432/pteron?schema=public
+      PRISMA_HIDE_UPDATE_MESSAGE: "1"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -44,6 +46,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://pteron:${DB_PASSWORD:-pteron}@db:5432/pteron?schema=public
+      NEXT_TELEMETRY_DISABLED: "1"
     ports:
       - "3000:3000"
     depends_on:
