@@ -8,17 +8,37 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { getConsoleCredentials } from '@/server/console';
+import type { AccessKind } from '@/lib/authz/visible-tabs';
 import type { PowerSignal } from '@/lib/ptero/types';
+import { consoleControls, type ConsoleControls } from './console-perms';
 import { ConsoleSocket, type ConsoleStats } from './socket';
 
-const powerActions: Array<{ signal: PowerSignal; label: string; variant: 'primary' | 'secondary' | 'danger' }> = [
-  { signal: 'start', label: '시작', variant: 'primary' },
-  { signal: 'restart', label: '재시작', variant: 'secondary' },
-  { signal: 'stop', label: '정지', variant: 'secondary' },
-  { signal: 'kill', label: '강제종료', variant: 'danger' },
+const powerActions: Array<{
+  signal: PowerSignal;
+  label: string;
+  variant: 'primary' | 'secondary' | 'danger';
+  control: keyof ConsoleControls;
+}> = [
+  { signal: 'start', label: '시작', variant: 'primary', control: 'canStart' },
+  { signal: 'restart', label: '재시작', variant: 'secondary', control: 'canRestart' },
+  { signal: 'stop', label: '정지', variant: 'secondary', control: 'canStop' },
+  { signal: 'kill', label: '강제종료', variant: 'danger', control: 'canKill' },
 ];
 
-export function ConsoleView({ identifier }: { identifier: string }) {
+// UI mitigation: subusers only see the power buttons / command input their
+// permissions allow. This is NOT a real security boundary — a subuser with a
+// websocket token can still drive Wings directly, so server-side enforcement
+// (a console WS proxy) is tracked separately.
+export function ConsoleView({
+  identifier,
+  accessKind,
+  permissions,
+}: {
+  identifier: string;
+  accessKind: AccessKind;
+  permissions: string[];
+}) {
+  const controls = consoleControls(accessKind, permissions);
   const termRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<ConsoleSocket | null>(null);
   const termInstance = useRef<Terminal | null>(null);
@@ -119,25 +139,29 @@ export function ConsoleView({ identifier }: { identifier: string }) {
       </Card>
 
       <div className="flex flex-wrap gap-2">
-        {powerActions.map((action) => (
-          <Button
-            key={action.signal}
-            type="button"
-            variant={action.variant}
-            onClick={() => setPower(action.signal)}
-          >
-            {action.label}
-          </Button>
-        ))}
+        {powerActions
+          .filter((action) => controls[action.control])
+          .map((action) => (
+            <Button
+              key={action.signal}
+              type="button"
+              variant={action.variant}
+              onClick={() => setPower(action.signal)}
+            >
+              {action.label}
+            </Button>
+          ))}
       </div>
 
-      <form onSubmit={submitCommand} className="flex gap-2">
-        <Input
-          value={command}
-          onChange={(event) => setCommand(event.target.value)}
-          placeholder="콘솔 명령어 입력…"
-        />
-      </form>
+      {controls.canCommand ? (
+        <form onSubmit={submitCommand} className="flex gap-2">
+          <Input
+            value={command}
+            onChange={(event) => setCommand(event.target.value)}
+            placeholder="콘솔 명령어 입력…"
+          />
+        </form>
+      ) : null}
     </div>
   );
 }

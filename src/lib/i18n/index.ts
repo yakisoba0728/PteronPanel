@@ -1,6 +1,8 @@
 import { cookies } from 'next/headers';
 import { dictionaries } from './dictionaries';
 
+export type { MessageKey } from './dictionaries';
+
 export type Locale = keyof typeof dictionaries;
 
 export function translate(locale: Locale, key: string): string {

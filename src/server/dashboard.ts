@@ -24,8 +24,11 @@ export type DashboardResult =
   | { ok: false; error: 'failed' };
 
 export async function getDashboardAction(): Promise<DashboardResult> {
+  // Resolve the user outside the try so an unauthenticated redirect('/login')
+  // (NEXT_REDIRECT) propagates instead of being swallowed by the catch.
+  const user = await requireUser();
+
   try {
-    const user = await requireUser();
     const servers = await resolveAccessibleServers(scope(user));
 
     return {

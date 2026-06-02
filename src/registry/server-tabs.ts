@@ -37,7 +37,12 @@ export const serverTabs: ServerTab[] = [
     permission: 'schedule.read',
   },
   { key: 'subusers', label: '서브유저', href: (id) => `/servers/${id}/subusers`, permission: 'user.read' },
-  { key: 'activity', label: '활동', href: (id) => `/servers/${id}/activity` },
+  {
+    key: 'activity',
+    label: '활동',
+    href: (id) => `/servers/${id}/activity`,
+    permission: 'activity.read',
+  },
 ];
 
 export function registerServerTab(tab: ServerTab): void {

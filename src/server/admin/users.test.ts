@@ -332,7 +332,12 @@ describe('admin user actions', () => {
     const res = await deletePteronUserAction('victim', true);
 
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.detail).toBe('panel delete failed');
+    // The raw 5xx upstream detail must not leak to the client; a generic
+    // message is surfaced instead (see friendlyMessage default branch).
+    if (!res.ok) {
+      expect(res.detail).toBe('오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+      expect(res.detail).not.toContain('panel delete failed');
+    }
     expect(prismaMock.user.delete).not.toHaveBeenCalled();
   });
 });

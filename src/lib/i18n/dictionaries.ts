@@ -14,3 +14,6 @@ export const dictionaries = {
     'common.loading': 'Loading...',
   },
 } as const;
+
+/** Union of all message keys available in the dictionaries. */
+export type MessageKey = keyof (typeof dictionaries)['ko'];
