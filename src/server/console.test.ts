@@ -70,3 +70,41 @@ describe('getConsoleCredentials', () => {
     expect(mocks.getWebsocketCredentials).not.toHaveBeenCalled();
   });
 });
+
+describe('getConsoleAccess', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mocks.requireUser.mockResolvedValue({
+      id: 'user-1',
+      role: 'USER',
+      pteroUserId: 7,
+      pteroUuid: null,
+    });
+  });
+
+  it('returns the access kind and permissions for an accessible server', async () => {
+    const { getConsoleAccess } = await loadAction();
+    mocks.resolveAccessibleServers.mockResolvedValue([
+      {
+        identifier: asIdentifier('1a2b3c4d'),
+        uuid: asUuid('1a2b3c4d-0000-4000-8000-000000000000'),
+        name: 'A',
+        accessKind: 'subuser',
+        permissions: ['control.console'],
+      },
+    ]);
+
+    await expect(getConsoleAccess('1a2b3c4d')).resolves.toEqual({
+      accessKind: 'subuser',
+      permissions: ['control.console'],
+    });
+  });
+
+  it('maps out-of-scope access to notFound', async () => {
+    const { getConsoleAccess } = await loadAction();
+    mocks.resolveAccessibleServers.mockResolvedValue([]);
+
+    await getConsoleAccess('1a2b3c4d').catch(() => undefined);
+    expect(mocks.notFound).toHaveBeenCalledOnce();
+  });
+});
