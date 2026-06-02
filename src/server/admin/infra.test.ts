@@ -1,9 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { mswServer } from '@/test/msw/server';
+import type { User } from '@prisma/client';
+
+type CurrentUser = Pick<User, 'id' | 'role' | 'pteroUserId'>;
 
 const userState = vi.hoisted(() => ({
-  currentUser: { id: 'admin', role: 'ADMIN', pteroUserId: null } as any,
+  currentUser: {
+    id: 'admin',
+    role: 'ADMIN',
+    pteroUserId: null,
+  } as CurrentUser,
 }));
 
 vi.mock('@/lib/auth/current-user', () => ({
@@ -11,7 +18,11 @@ vi.mock('@/lib/auth/current-user', () => ({
 }));
 vi.mock('@/lib/audit', () => ({ audit: vi.fn() }));
 
-import { createLocationAction, listNodesAction } from './infra';
+import {
+  createLocationAction,
+  listNodesAction,
+  updateLocationAction,
+} from './infra';
 
 const BASE = 'https://panel.test/api/application';
 
@@ -76,5 +87,23 @@ describe('admin infra actions', () => {
     const res = await createLocationAction({ short: 'kr', long: 'Korea' });
     expect(res.ok).toBe(true);
     expect(body).toEqual({ short: 'kr', long: 'Korea' });
+  });
+
+  it('updateLocationAction patches short and long names', async () => {
+    let body: unknown;
+    mswServer.use(
+      http.patch(`${BASE}/locations/3`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({
+          object: 'location',
+          attributes: { id: 3, short: 'jp', long: 'Japan' },
+        });
+      }),
+    );
+
+    const res = await updateLocationAction(3, { short: 'jp', long: 'Japan' });
+
+    expect(res.ok).toBe(true);
+    expect(body).toEqual({ short: 'jp', long: 'Japan' });
   });
 });

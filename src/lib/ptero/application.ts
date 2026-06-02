@@ -15,6 +15,8 @@ import {
   type PteroNode,
   type PteroServer,
   type PteroUser,
+  type UpdateServerBuildInput,
+  type UpdateServerStartupInput,
 } from './types';
 
 interface AppServerAttrs {
@@ -270,11 +272,7 @@ export async function updateServerDetails(
 
 export async function updateServerBuild(
   id: number,
-  input: {
-    limits?: Partial<CreateServerInput['limits']>;
-    feature_limits?: Partial<CreateServerInput['feature_limits']>;
-    allocation?: number;
-  },
+  input: UpdateServerBuildInput,
 ): Promise<PteroServer> {
   const res = await pteroFetch<PteroItem<PteroServer>>(
     'application',
@@ -286,13 +284,7 @@ export async function updateServerBuild(
 
 export async function updateServerStartup(
   id: number,
-  input: {
-    startup?: string;
-    egg?: number;
-    image?: string;
-    environment?: Record<string, string>;
-    skip_scripts?: boolean;
-  },
+  input: UpdateServerStartupInput,
 ): Promise<PteroServer> {
   const res = await pteroFetch<PteroItem<PteroServer>>(
     'application',

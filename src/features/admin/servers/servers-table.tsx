@@ -8,6 +8,8 @@ import {
   reinstallServerAction,
   deleteServerAction,
   renameServerAction,
+  updateServerBuildAction,
+  updateServerStartupAction,
 } from '@/server/admin/servers';
 import type { PteroServer } from '@/lib/ptero/types';
 import { Button } from '@/components/ui/button';
@@ -54,13 +56,124 @@ export function ServersTable() {
 
   async function remove(server: PteroServer) {
     const typed = prompt(`삭제하려면 서버 이름을 입력하세요: ${server.name}`);
-    if (typed !== server.name) return;
+    if (typed !== server.name) {
+      setMsg('삭제 확인값이 서버 이름과 일치하지 않습니다.');
+      return;
+    }
 
     const res = await deleteServerAction(server.id, false);
     if (res.ok) {
       load();
     } else {
       setMsg(res.detail ?? '삭제 실패');
+    }
+  }
+
+  function promptNumber(label: string, current: number): number | null {
+    const value = prompt(label, String(current));
+    if (value == null) return null;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      setMsg(`${label} 값이 올바르지 않습니다.`);
+      return null;
+    }
+    return Math.trunc(parsed);
+  }
+
+  async function updateBuild(server: PteroServer) {
+    const memory = promptNumber('메모리(MB)', server.limits.memory);
+    if (memory == null) return;
+    const swap = promptNumber('Swap(MB)', server.limits.swap);
+    if (swap == null) return;
+    const disk = promptNumber('디스크(MB)', server.limits.disk);
+    if (disk == null) return;
+    const io = promptNumber('IO(10-1000)', server.limits.io);
+    if (io == null) return;
+    const cpu = promptNumber('CPU(%)', server.limits.cpu);
+    if (cpu == null) return;
+    const databases = promptNumber('DB 수', server.feature_limits.databases);
+    if (databases == null) return;
+    const allocations = promptNumber(
+      '할당 수',
+      server.feature_limits.allocations,
+    );
+    if (allocations == null) return;
+    const backups = promptNumber('백업 수', server.feature_limits.backups);
+    if (backups == null) return;
+
+    const allocationRaw = prompt(
+      '기본 allocation ID(변경하지 않으려면 비움)',
+      server.allocation ? String(server.allocation) : '',
+    );
+    if (allocationRaw == null) return;
+    const allocation = allocationRaw.trim()
+      ? Number(allocationRaw.trim())
+      : undefined;
+    if (allocation !== undefined && !Number.isInteger(allocation)) {
+      setMsg('기본 allocation ID가 올바르지 않습니다.');
+      return;
+    }
+
+    const res = await updateServerBuildAction(server.id, {
+      allocation,
+      limits: { memory, swap, disk, io, cpu },
+      featureLimits: { databases, allocations, backups },
+    });
+    if (res.ok) {
+      load();
+    } else {
+      setMsg(res.detail ?? '빌드 설정 변경 실패');
+    }
+  }
+
+  async function updateStartup(server: PteroServer) {
+    const eggRaw = prompt('Egg ID', server.egg ? String(server.egg) : '');
+    if (eggRaw == null) return;
+    const egg = Number(eggRaw);
+    if (!Number.isInteger(egg) || egg <= 0) {
+      setMsg('Egg ID가 올바르지 않습니다.');
+      return;
+    }
+
+    const image = prompt(
+      'Docker 이미지',
+      server.docker_image ?? 'ghcr.io/pterodactyl/yolks:java_17',
+    );
+    if (!image) return;
+    const startup = prompt('시작 명령어', server.startup ?? '');
+    if (!startup) return;
+    const envRaw = prompt('환경변수 JSON', '{}');
+    if (envRaw == null) return;
+
+    let environment: Record<string, string>;
+    try {
+      const parsed = JSON.parse(envRaw) as unknown;
+      if (
+        !parsed ||
+        typeof parsed !== 'object' ||
+        Array.isArray(parsed) ||
+        Object.values(parsed).some((value) => typeof value !== 'string')
+      ) {
+        throw new Error('environment must be a string map');
+      }
+      environment = parsed as Record<string, string>;
+    } catch {
+      setMsg('환경변수는 문자열 값만 가진 JSON 객체여야 합니다.');
+      return;
+    }
+
+    const skipScripts = confirm('설치 스크립트를 건너뛰겠습니까?');
+    const res = await updateServerStartupAction(server.id, {
+      startup,
+      egg,
+      image,
+      environment,
+      skipScripts,
+    });
+    if (res.ok) {
+      load();
+    } else {
+      setMsg(res.detail ?? '시작 설정 변경 실패');
     }
   }
 
@@ -117,6 +230,18 @@ export function ServersTable() {
                   <div className="flex justify-end gap-2">
                     <Button variant="ghost" onClick={() => rename(server)}>
                       이름
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => updateBuild(server)}
+                    >
+                      빌드
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => updateStartup(server)}
+                    >
+                      시작
                     </Button>
                     <Button
                       variant="ghost"

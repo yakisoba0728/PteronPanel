@@ -24,6 +24,7 @@ const OTHER = {
 };
 
 const wsEvents = [];
+const createdServers = [];
 
 function list(data) {
   return {
@@ -46,7 +47,14 @@ function json(res, body, status = 200) {
   res.end(JSON.stringify(body));
 }
 
-const server = createServer((req, res) => {
+async function readJson(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const raw = Buffer.concat(chunks).toString('utf8');
+  return raw ? JSON.parse(raw) : {};
+}
+
+const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', 'http://127.0.0.1');
   const { pathname } = url;
   const method = req.method;
@@ -193,19 +201,39 @@ const server = createServer((req, res) => {
   }
 
   if (pathname === '/api/application/servers' && method === 'POST') {
-    return json(res, {
+    const body = await readJson(req);
+    const created = {
       object: 'server',
       attributes: {
-        id: 99,
-        uuid: 'new-uuid',
-        identifier: 'newserv',
-        name: 'E2E Server',
-        user: 7,
+        id: 99 + createdServers.length,
+        uuid: `new-uuid-${createdServers.length}`,
+        identifier: `newsrv${createdServers.length}`.slice(0, 8),
+        name: body.name ?? 'E2E Server',
+        user: body.user ?? 7,
         node: 1,
+        allocation: 1,
+        egg: body.egg ?? 5,
+        docker_image: body.docker_image,
+        startup: body.startup,
         suspended: false,
-        limits: { memory: 1024, swap: 0, disk: 5120, io: 500, cpu: 100 },
-        feature_limits: { databases: 1, allocations: 1, backups: 1 },
+        limits: body.limits ?? {
+          memory: 1024,
+          swap: 0,
+          disk: 5120,
+          io: 500,
+          cpu: 100,
+        },
+        feature_limits: body.feature_limits ?? {
+          databases: 1,
+          allocations: 1,
+          backups: 1,
+        },
       },
+    };
+    createdServers.push(created);
+    return json(res, {
+      object: 'server',
+      attributes: created.attributes,
     });
   }
 
@@ -227,6 +255,7 @@ const server = createServer((req, res) => {
             feature_limits: { databases: 1, allocations: 1, backups: 1 },
           },
         },
+        ...createdServers,
       ]),
     );
   }

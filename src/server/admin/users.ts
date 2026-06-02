@@ -18,7 +18,8 @@ type Fail = {
   error: 'forbidden' | 'failed' | 'validation';
   detail?: string;
 };
-type Ok<T> = { ok: true } & T;
+type Ok = { ok: true };
+type OkWith<T> = Ok & T;
 
 async function admin() {
   const user = await requireUser();
@@ -43,6 +44,10 @@ function fail(err: unknown): Fail {
   return { ok: false, error: 'failed', detail };
 }
 
+function failed(detail: string): Fail {
+  return { ok: false, error: 'failed', detail };
+}
+
 export interface PteronUserRow {
   id: string;
   email: string;
@@ -53,7 +58,7 @@ export interface PteronUserRow {
 }
 
 export async function listPteronUsersAction(): Promise<
-  Ok<{ users: PteronUserRow[] }> | Fail
+  OkWith<{ users: PteronUserRow[] }> | Fail
 > {
   try {
     await admin();
@@ -86,11 +91,12 @@ const CreateSchema = z.object({
 
 export async function createPteronUserAction(
   input: z.infer<typeof CreateSchema>,
-): Promise<Ok<{ id: string }> | Fail> {
+): Promise<OkWith<{ id: string }> | Fail> {
   try {
     const me = await admin();
     const data = CreateSchema.parse(input);
     let mapping = await findUserByEmail(data.email);
+    let createdPteroUserId: number | null = null;
 
     if (!mapping && data.createPterodactyl) {
       const created = await createPteroUser({
@@ -101,18 +107,29 @@ export async function createPteronUserAction(
         password: data.password,
       });
       mapping = { id: created.id, uuid: created.uuid };
+      createdPteroUserId = created.id;
     }
 
-    const user = await prisma.user.create({
-      data: {
-        email: data.email.toLowerCase(),
-        username: data.username,
-        passwordHash: await hashPassword(data.password),
-        role: data.role,
-        pteroUserId: mapping?.id,
-        pteroUuid: mapping?.uuid,
-      },
-    });
+    let user: { id: string };
+    try {
+      user = await prisma.user.create({
+        data: {
+          email: data.email.toLowerCase(),
+          username: data.username,
+          passwordHash: await hashPassword(data.password),
+          role: data.role,
+          pteroUserId: mapping?.id,
+          pteroUuid: mapping?.uuid,
+        },
+      });
+    } catch (err) {
+      if (createdPteroUserId) {
+        await deletePteroUser(createdPteroUserId).catch((deleteErr) => {
+          console.error('compensating ptero user delete failed', deleteErr);
+        });
+      }
+      throw err;
+    }
 
     await audit('admin.user.create', {
       userId: me.id,
@@ -136,10 +153,33 @@ const UpdateSchema = z.object({
 
 export async function updatePteronUserAction(
   input: z.infer<typeof UpdateSchema>,
-): Promise<Ok<{}> | Fail> {
+): Promise<Ok | Fail> {
   try {
     const me = await admin();
     const data = UpdateSchema.parse(input);
+
+    if (data.id === me.id && data.role && data.role !== 'ADMIN') {
+      return failed('자기 자신의 관리자 권한은 해제할 수 없습니다.');
+    }
+    if (data.id === me.id && data.isActive === false) {
+      return failed('자기 자신은 비활성화할 수 없습니다.');
+    }
+
+    if (data.role === 'USER' || data.isActive === false) {
+      const target = await prisma.user.findUnique({
+        where: { id: data.id },
+        select: { role: true, isActive: true },
+      });
+      if (target?.role === 'ADMIN' && target.isActive) {
+        const activeAdmins = await prisma.user.count({
+          where: { role: 'ADMIN', isActive: true },
+        });
+        if (activeAdmins <= 1) {
+          return failed('최소 한 명의 활성 관리자가 필요합니다.');
+        }
+      }
+    }
+
     const patch: {
       role?: 'ADMIN' | 'USER';
       isActive?: boolean;
@@ -176,27 +216,24 @@ export async function updatePteronUserAction(
 export async function deletePteronUserAction(
   id: string,
   alsoDeletePterodactyl = false,
-): Promise<Ok<{}> | Fail> {
+): Promise<Ok | Fail> {
   try {
     const me = await admin();
     if (id === me.id) {
-      return {
-        ok: false,
-        error: 'failed',
-        detail: '자기 자신은 삭제할 수 없습니다.',
-      };
+      return failed('자기 자신은 삭제할 수 없습니다.');
     }
 
     const target = await prisma.user.findUnique({ where: { id } });
-    await prisma.user.delete({ where: { id } });
-
     if (alsoDeletePterodactyl && target?.pteroUserId) {
-      await deletePteroUser(target.pteroUserId).catch((err) => {
-        console.error('ptero user delete failed', err);
-      });
+      await deletePteroUser(target.pteroUserId);
     }
 
-    await audit('admin.user.delete', { userId: me.id, target: id });
+    await prisma.user.delete({ where: { id } });
+    await audit('admin.user.delete', {
+      userId: me.id,
+      target: id,
+      metadata: { alsoDeletePterodactyl },
+    });
     return { ok: true };
   } catch (err) {
     return fail(err);

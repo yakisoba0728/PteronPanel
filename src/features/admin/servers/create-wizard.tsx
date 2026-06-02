@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   listNestsAction,
@@ -32,6 +32,13 @@ export function CreateWizard() {
   const [variables, setVariables] = useState<PteroEggVariable[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [eggLoading, setEggLoading] = useState(false);
+  const [loadedEgg, setLoadedEgg] = useState<{
+    nestId: number;
+    eggId: number;
+  } | null>(null);
+  const eggListRequest = useRef(0);
+  const eggDetailRequest = useRef(0);
 
   const [form, setForm] = useState({
     name: '',
@@ -69,20 +76,52 @@ export function CreateWizard() {
   }, []);
 
   async function onNest(nestId: number) {
-    setForm((current) => ({ ...current, nest: nestId, egg: 0 }));
+    eggListRequest.current += 1;
+    eggDetailRequest.current += 1;
+    setMsg(null);
+    setForm((current) => ({
+      ...current,
+      nest: nestId,
+      egg: 0,
+      dockerImage: '',
+      startup: '',
+    }));
     setEggs([]);
     setVariables([]);
+    setEnv({});
+    setLoadedEgg(null);
+    setEggLoading(false);
     if (!nestId) return;
 
+    const requestId = eggListRequest.current;
     const res = await listEggsAction(nestId);
-    if (res.ok) setEggs(res.eggs);
+    if (requestId !== eggListRequest.current) return;
+    if (res.ok) {
+      setEggs(res.eggs);
+    } else {
+      setMsg(res.detail ?? 'Egg 목록을 불러오지 못했습니다.');
+    }
   }
 
-  async function onEgg(eggId: number) {
-    setForm((current) => ({ ...current, egg: eggId }));
+  async function onEgg(nestId: number, eggId: number) {
+    eggDetailRequest.current += 1;
+    setMsg(null);
+    setLoadedEgg(null);
+    setVariables([]);
+    setEnv({});
+    setForm((current) => ({
+      ...current,
+      egg: eggId,
+      dockerImage: '',
+      startup: '',
+    }));
     if (!eggId) return;
 
-    const res = await getEggAction(form.nest, eggId);
+    const requestId = eggDetailRequest.current;
+    setEggLoading(true);
+    const res = await getEggAction(nestId, eggId);
+    if (requestId !== eggDetailRequest.current) return;
+    setEggLoading(false);
     if (res.ok) {
       setForm((current) => ({
         ...current,
@@ -99,12 +138,23 @@ export function CreateWizard() {
           ]),
         ),
       );
+      setLoadedEgg({ nestId, eggId });
+    } else {
+      setMsg(res.detail ?? 'Egg 정보를 불러오지 못했습니다.');
     }
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
+    const eggReady =
+      loadedEgg?.nestId === form.nest &&
+      loadedEgg?.eggId === form.egg &&
+      !eggLoading;
+    if (!eggReady) {
+      setMsg('선택한 Egg 정보를 불러온 뒤 생성할 수 있습니다.');
+      return;
+    }
     setBusy(true);
     const res = await createServerAction({
       name: form.name,
@@ -185,7 +235,7 @@ export function CreateWizard() {
         <select
           className="w-full rounded-md border px-2 py-2 text-sm dark:bg-zinc-900"
           value={form.egg}
-          onChange={(e) => onEgg(num(e.target.value))}
+          onChange={(e) => onEgg(form.nest, num(e.target.value))}
           disabled={!form.nest}
         >
           <option value={0}>Egg 선택</option>
@@ -195,6 +245,9 @@ export function CreateWizard() {
             </option>
           ))}
         </select>
+        {eggLoading && (
+          <p className="text-xs text-zinc-500">Egg 정보를 불러오는 중...</p>
+        )}
         {form.egg > 0 && (
           <>
             <Input
@@ -341,7 +394,15 @@ export function CreateWizard() {
         </Button>
         <Button
           type="submit"
-          disabled={busy || !form.user || !form.egg || !form.locationId}
+          disabled={
+            busy ||
+            !form.user ||
+            !form.egg ||
+            !form.locationId ||
+            loadedEgg?.nestId !== form.nest ||
+            loadedEgg?.eggId !== form.egg ||
+            eggLoading
+          }
         >
           {busy ? '생성 중...' : '서버 생성'}
         </Button>

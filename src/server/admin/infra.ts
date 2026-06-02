@@ -13,7 +13,8 @@ type Fail = {
   error: 'forbidden' | 'failed' | 'validation';
   detail?: string;
 };
-type Ok<T> = { ok: true } & T;
+type Ok = { ok: true };
+type OkWith<T> = Ok & T;
 
 async function admin() {
   const user = await requireUser();
@@ -39,7 +40,7 @@ function fail(err: unknown): Fail {
 }
 
 export async function listNodesAction(): Promise<
-  Ok<{ nodes: PteroNode[] }> | Fail
+  OkWith<{ nodes: PteroNode[] }> | Fail
 > {
   try {
     await admin();
@@ -50,7 +51,7 @@ export async function listNodesAction(): Promise<
 }
 
 export async function listLocationsAction(): Promise<
-  Ok<{ locations: PteroLocation[] }> | Fail
+  OkWith<{ locations: PteroLocation[] }> | Fail
 > {
   try {
     await admin();
@@ -67,7 +68,7 @@ const LocationSchema = z.object({
 
 export async function createLocationAction(
   input: z.infer<typeof LocationSchema>,
-): Promise<Ok<{ id: number }> | Fail> {
+): Promise<OkWith<{ id: number }> | Fail> {
   try {
     const me = await admin();
     const data = LocationSchema.parse(input);
@@ -85,7 +86,7 @@ export async function createLocationAction(
 export async function updateLocationAction(
   id: number,
   input: Partial<z.infer<typeof LocationSchema>>,
-): Promise<Ok<{}> | Fail> {
+): Promise<Ok | Fail> {
   try {
     const me = await admin();
     const data = LocationSchema.partial().parse(input);
@@ -102,7 +103,7 @@ export async function updateLocationAction(
 
 export async function deleteLocationAction(
   id: number,
-): Promise<Ok<{}> | Fail> {
+): Promise<Ok | Fail> {
   try {
     const me = await admin();
     await app.deleteLocation(id);

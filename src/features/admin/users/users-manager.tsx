@@ -77,6 +77,46 @@ export function UsersManager() {
     }
   }
 
+  async function changeRole(user: PteronUserRow) {
+    const role = prompt('역할(USER 또는 ADMIN)', user.role);
+    if (role == null || role === user.role) return;
+    if (role !== 'USER' && role !== 'ADMIN') {
+      setMsg('역할은 USER 또는 ADMIN이어야 합니다.');
+      return;
+    }
+
+    const res = await updatePteronUserAction({ id: user.id, role });
+    if (res.ok) {
+      load();
+    } else {
+      setMsg(res.detail ?? '역할 변경 실패');
+    }
+  }
+
+  async function remapEmail(user: PteronUserRow) {
+    const email = prompt('새 이메일(매핑 재조회)', user.email);
+    if (!email || email === user.email) return;
+
+    const res = await updatePteronUserAction({ id: user.id, email });
+    if (res.ok) {
+      load();
+    } else {
+      setMsg(res.detail ?? '이메일/매핑 변경 실패');
+    }
+  }
+
+  async function resetPassword(user: PteronUserRow) {
+    const password = prompt('새 비밀번호(8자 이상)');
+    if (!password) return;
+
+    const res = await updatePteronUserAction({ id: user.id, password });
+    if (res.ok) {
+      setMsg('비밀번호를 변경했습니다.');
+    } else {
+      setMsg(res.detail ?? '비밀번호 변경 실패');
+    }
+  }
+
   async function remove(user: PteronUserRow) {
     const typed = prompt(`삭제하려면 ${user.email} 을(를) 입력하세요.`);
     if (typed !== user.email) {
@@ -84,7 +124,10 @@ export function UsersManager() {
       return;
     }
 
-    const res = await deletePteronUserAction(user.id);
+    const alsoDeletePterodactyl = confirm(
+      '매핑된 Pterodactyl 유저도 삭제할까요?',
+    );
+    const res = await deletePteronUserAction(user.id, alsoDeletePterodactyl);
     if (res.ok) {
       load();
     } else {
@@ -184,6 +227,27 @@ export function UsersManager() {
                       onClick={() => toggleActive(user)}
                     >
                       {user.isActive ? '비활성' : '활성'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => changeRole(user)}
+                    >
+                      역할
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => remapEmail(user)}
+                    >
+                      이메일
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => resetPassword(user)}
+                    >
+                      비번
                     </Button>
                     <Button
                       type="button"

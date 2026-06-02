@@ -8,6 +8,8 @@ import {
   unsuspendServer,
   deleteServer,
   updateServerDetails,
+  updateServerBuild,
+  updateServerStartup,
 } from './application';
 
 const BASE = 'https://panel.test/api/application';
@@ -47,7 +49,7 @@ describe('application servers', () => {
   });
 
   it('createServer posts the full body (deploy)', async () => {
-    let body: any;
+    let body: unknown;
     mswServer.use(
       http.post(`${BASE}/servers`, async ({ request }) => {
         body = await request.json();
@@ -83,10 +85,11 @@ describe('application servers', () => {
     expect(s.id).toBe(9);
   });
 
-  it('suspend / unsuspend / delete', async () => {
+  it('suspend / unsuspend / delete / force delete', async () => {
     let suspended = false;
     let unsuspended = false;
     let deleted = false;
+    let forceDeleted = false;
     mswServer.use(
       http.post(`${BASE}/servers/9/suspend`, () => {
         suspended = true;
@@ -100,15 +103,25 @@ describe('application servers', () => {
         deleted = true;
         return new HttpResponse(null, { status: 204 });
       }),
+      http.delete(`${BASE}/servers/9/force`, () => {
+        forceDeleted = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
     );
     await suspendServer(9);
     await unsuspendServer(9);
     await deleteServer(9);
-    expect([suspended, unsuspended, deleted]).toEqual([true, true, true]);
+    await deleteServer(9, true);
+    expect([suspended, unsuspended, deleted, forceDeleted]).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ]);
   });
 
   it('updateServerDetails PATCHes details', async () => {
-    let body: any;
+    let body: unknown;
     mswServer.use(
       http.patch(`${BASE}/servers/9/details`, async ({ request }) => {
         body = await request.json();
@@ -121,5 +134,71 @@ describe('application servers', () => {
     const s = await updateServerDetails(9, { name: 'Renamed' });
     expect(body).toEqual({ name: 'Renamed' });
     expect(s.name).toBe('Renamed');
+  });
+
+  it('updateServerBuild PATCHes a flat complete build body', async () => {
+    let body: unknown;
+    mswServer.use(
+      http.patch(`${BASE}/servers/9/build`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({
+          object: 'server',
+          attributes: srv({
+            id: 9,
+            limits: { memory: 2048, swap: 0, disk: 10240, io: 500, cpu: 150 },
+          }),
+        });
+      }),
+    );
+
+    const s = await updateServerBuild(9, {
+      allocation: 1,
+      memory: 2048,
+      swap: 0,
+      disk: 10240,
+      io: 500,
+      cpu: 150,
+      feature_limits: { databases: 2, allocations: 3, backups: 4 },
+    });
+
+    expect(body).toEqual({
+      allocation: 1,
+      memory: 2048,
+      swap: 0,
+      disk: 10240,
+      io: 500,
+      cpu: 150,
+      feature_limits: { databases: 2, allocations: 3, backups: 4 },
+    });
+    expect(s.limits.memory).toBe(2048);
+  });
+
+  it('updateServerStartup PATCHes a complete startup body', async () => {
+    let body: unknown;
+    mswServer.use(
+      http.patch(`${BASE}/servers/9/startup`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({
+          object: 'server',
+          attributes: srv({ id: 9 }),
+        });
+      }),
+    );
+
+    await updateServerStartup(9, {
+      startup: 'java -jar server.jar',
+      egg: 5,
+      image: 'ghcr.io/pterodactyl/yolks:java_21',
+      environment: { MC_VERSION: '1.21.1' },
+      skip_scripts: false,
+    });
+
+    expect(body).toEqual({
+      startup: 'java -jar server.jar',
+      egg: 5,
+      image: 'ghcr.io/pterodactyl/yolks:java_21',
+      environment: { MC_VERSION: '1.21.1' },
+      skip_scripts: false,
+    });
   });
 });

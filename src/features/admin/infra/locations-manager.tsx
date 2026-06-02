@@ -9,6 +9,7 @@ import {
   createLocationAction,
   deleteLocationAction,
   listLocationsAction,
+  updateLocationAction,
 } from '@/server/admin/infra';
 
 export function LocationsManager() {
@@ -60,6 +61,22 @@ export function LocationsManager() {
     }
   }
 
+  async function edit(location: PteroLocation) {
+    const short = prompt('short', location.short);
+    if (!short) return;
+    const long = prompt('long', location.long ?? '') ?? '';
+
+    const res = await updateLocationAction(location.id, {
+      short,
+      long: long || undefined,
+    });
+    if (res.ok) {
+      load();
+    } else {
+      setMsg(res.detail ?? '수정 실패');
+    }
+  }
+
   return (
     <div className="space-y-3">
       <h1 className="text-xl font-semibold">로케이션</h1>
@@ -94,13 +111,22 @@ export function LocationsManager() {
                 <td className="px-4 py-2 font-medium">{location.short}</td>
                 <td className="px-4 py-2 text-zinc-500">{location.long}</td>
                 <td className="px-4 py-2 text-right">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => remove(location)}
-                  >
-                    삭제
-                  </Button>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => edit(location)}
+                    >
+                      수정
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => remove(location)}
+                    >
+                      삭제
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}

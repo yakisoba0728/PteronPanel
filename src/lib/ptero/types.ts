@@ -164,6 +164,10 @@ export interface PteroServer {
   name: string;
   user: number;
   node: number;
+  allocation?: number;
+  egg?: number;
+  docker_image?: string;
+  startup?: string;
   suspended: boolean;
   limits: {
     memory: number;
@@ -205,4 +209,26 @@ export interface CreateServerInput {
   };
   allocation?: { default: number; additional?: number[] };
   start_on_completion?: boolean;
+}
+
+export interface UpdateServerBuildInput {
+  allocation?: number;
+  memory: number;
+  swap: number;
+  disk: number;
+  io: number;
+  cpu: number;
+  feature_limits: {
+    databases: number;
+    allocations: number;
+    backups: number;
+  };
+}
+
+export interface UpdateServerStartupInput {
+  startup: string;
+  egg: number;
+  image: string;
+  environment: Record<string, string>;
+  skip_scripts?: boolean;
 }
