@@ -36,6 +36,7 @@ const validSchedule = {
   day_of_month: '*',
   month: '*',
   day_of_week: '*',
+  is_active: true,
 };
 const validTask = {
   action: 'command' as const,
@@ -131,6 +132,7 @@ describe('schedule actions', () => {
         day_of_month: '',
         month: '',
         day_of_week: '',
+        is_active: true,
       }),
     ).resolves.toEqual({ ok: false, error: 'not_found' });
     await expect(
@@ -167,7 +169,46 @@ describe('schedule actions', () => {
       day_of_month: '',
       month: '',
       day_of_week: '',
+      is_active: true,
     });
     expect(res.ok).toBe(false);
+  });
+
+  it('createSchedule accepts a multi-value cron expression', async () => {
+    adminLists('1a2b3c4d');
+    mswServer.use(
+      http.post(`${CLIENT}/servers/1a2b3c4d/schedules`, () =>
+        HttpResponse.json({
+          object: 'server_schedule',
+          attributes: {
+            id: 11,
+            name: 'quarter-hourly',
+            cron: {
+              minute: '0,15,30,45',
+              hour: '*',
+              day_of_week: '*',
+              day_of_month: '*',
+              month: '*',
+            },
+            is_active: true,
+            is_processing: false,
+            only_when_online: false,
+            last_run_at: null,
+            next_run_at: null,
+          },
+        }),
+      ),
+    );
+    const res = await createScheduleAction('1a2b3c4d', {
+      name: 'quarter-hourly',
+      minute: '0,15,30,45',
+      hour: '*',
+      day_of_month: '*',
+      month: '*',
+      day_of_week: '*',
+      is_active: true,
+    });
+    expect(res.ok).toBe(true);
+    expect(res.ok && res.schedule.id).toBe(11);
   });
 });

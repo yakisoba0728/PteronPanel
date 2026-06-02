@@ -133,6 +133,28 @@ describe('subuser actions', () => {
     expect(res.ok).toBe(false);
   });
 
+  it('createSubuser accepts permission keys containing digits', async () => {
+    adminLists('1a2b3c4d');
+    mswServer.use(
+      http.post(`${CLIENT}/servers/1a2b3c4d/users`, () =>
+        HttpResponse.json({
+          object: 'server_subuser',
+          attributes: {
+            uuid: 's2',
+            username: 'c',
+            email: 'c@x.com',
+            image: '',
+            permissions: ['some.key2'],
+          },
+        }),
+      ),
+    );
+
+    const res = await createSubuserAction('1a2b3c4d', 'c@x.com', ['some.key2']);
+    expect(res.ok).toBe(true);
+    expect(res.ok && res.subuser.uuid).toBe('s2');
+  });
+
   it('deleteSubuser removes the ServerAccess cache row immediately', async () => {
     adminLists('1a2b3c4d');
     mswServer.use(
