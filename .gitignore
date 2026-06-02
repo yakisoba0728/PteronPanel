@@ -15,3 +15,13 @@ AGENTS.md
 # OS
 .DS_Store
 Thumbs.db
+
+# Node / Next
+node_modules/
+.next/
+.env
+.env.local
+coverage/
+/prisma/*.db
+next-env.d.ts
+tsconfig.tsbuildinfo
