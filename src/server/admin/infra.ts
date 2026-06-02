@@ -85,7 +85,7 @@ export async function createLocationAction(
 export async function updateLocationAction(
   id: number,
   input: Partial<z.infer<typeof LocationSchema>>,
-): Promise<Ok<Record<string, never>> | Fail> {
+): Promise<Ok<{}> | Fail> {
   try {
     const me = await admin();
     const data = LocationSchema.partial().parse(input);
@@ -102,7 +102,7 @@ export async function updateLocationAction(
 
 export async function deleteLocationAction(
   id: number,
-): Promise<Ok<Record<string, never>> | Fail> {
+): Promise<Ok<{}> | Fail> {
   try {
     const me = await admin();
     await app.deleteLocation(id);

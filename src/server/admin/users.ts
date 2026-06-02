@@ -136,7 +136,7 @@ const UpdateSchema = z.object({
 
 export async function updatePteronUserAction(
   input: z.infer<typeof UpdateSchema>,
-): Promise<Ok<Record<string, never>> | Fail> {
+): Promise<Ok<{}> | Fail> {
   try {
     const me = await admin();
     const data = UpdateSchema.parse(input);
@@ -176,7 +176,7 @@ export async function updatePteronUserAction(
 export async function deletePteronUserAction(
   id: string,
   alsoDeletePterodactyl = false,
-): Promise<Ok<Record<string, never>> | Fail> {
+): Promise<Ok<{}> | Fail> {
   try {
     const me = await admin();
     if (id === me.id) {
