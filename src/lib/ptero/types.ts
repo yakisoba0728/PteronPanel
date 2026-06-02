@@ -315,3 +315,11 @@ export interface TaskInput {
   time_offset: number;
   continue_on_failure?: boolean;
 }
+
+export interface Subuser {
+  uuid: string;
+  username: string;
+  email: string;
+  image: string;
+  permissions: string[];
+}

@@ -18,6 +18,7 @@ import {
   type ServerResources,
   type ServerSchedule,
   type StartupVariable,
+  type Subuser,
   type TaskInput,
   type WebsocketCredentials,
 } from './types';
@@ -539,6 +540,72 @@ export async function deleteTask(
     `/servers/${id}/schedules/${pathSegment(schedId)}/tasks/${pathSegment(taskId)}`,
     { method: 'DELETE' },
   );
+}
+
+export async function listSubusers(id: ServerIdentifier): Promise<Subuser[]> {
+  const response = await pteroFetch<PteroList<Subuser>>(
+    'client',
+    `/servers/${id}/users`,
+  );
+
+  return response.data.map((item) => item.attributes);
+}
+
+export async function createSubuser(
+  id: ServerIdentifier,
+  email: string,
+  permissions: string[],
+): Promise<Subuser> {
+  const response = await pteroFetch<PteroItem<Subuser>>(
+    'client',
+    `/servers/${id}/users`,
+    { method: 'POST', body: { email, permissions } },
+  );
+
+  return response.attributes;
+}
+
+export async function updateSubuser(
+  id: ServerIdentifier,
+  subuserUuid: string,
+  permissions: string[],
+): Promise<Subuser> {
+  const response = await pteroFetch<PteroItem<Subuser>>(
+    'client',
+    `/servers/${id}/users/${pathSegment(subuserUuid)}`,
+    { method: 'POST', body: { permissions } },
+  );
+
+  return response.attributes;
+}
+
+export async function deleteSubuser(
+  id: ServerIdentifier,
+  subuserUuid: string,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/users/${pathSegment(subuserUuid)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function listPermissionKeys(): Promise<string[]> {
+  const response = await pteroFetch<{
+    attributes: {
+      permissions: Record<string, { keys: Record<string, string> }>;
+    };
+  }>('client', '/permissions');
+  const keys: string[] = [];
+
+  for (const [group, definition] of Object.entries(
+    response.attributes.permissions,
+  )) {
+    if (group === 'websocket') continue;
+    for (const key of Object.keys(definition.keys)) {
+      keys.push(`${group}.${key}`);
+    }
+  }
+
+  return keys;
 }
 
 interface DbAttrs {
