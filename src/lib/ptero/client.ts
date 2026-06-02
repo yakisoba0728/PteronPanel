@@ -4,6 +4,7 @@ import {
   asNumericId,
   asUuid,
   type AccessibleServer,
+  type BackupEntry,
   type FileEntry,
   type PowerSignal,
   type PteroItem,
@@ -291,5 +292,82 @@ export async function pullRemoteFile(
       use_header: opts.useHeader,
       foreground: opts.foreground,
     },
+  });
+}
+
+export async function listBackups(
+  id: ServerIdentifier,
+): Promise<BackupEntry[]> {
+  const response = await pteroFetch<PteroList<BackupEntry>>(
+    'client',
+    `/servers/${id}/backups`,
+    { query: { per_page: 100 } },
+  );
+
+  return response.data.map((item) => item.attributes);
+}
+
+export async function createBackup(
+  id: ServerIdentifier,
+  opts: { name?: string; ignored?: string; isLocked?: boolean } = {},
+): Promise<BackupEntry> {
+  const response = await pteroFetch<{ attributes: BackupEntry }>(
+    'client',
+    `/servers/${id}/backups`,
+    {
+      method: 'POST',
+      body: {
+        name: opts.name,
+        ignored: opts.ignored,
+        is_locked: opts.isLocked,
+      },
+    },
+  );
+
+  return response.attributes;
+}
+
+export async function getBackupDownloadUrl(
+  id: ServerIdentifier,
+  backupUuid: string,
+): Promise<string> {
+  const response = await pteroFetch<SignedUrl>(
+    'client',
+    `/servers/${id}/backups/${backupUuid}/download`,
+  );
+
+  return response.attributes.url;
+}
+
+export async function toggleBackupLock(
+  id: ServerIdentifier,
+  backupUuid: string,
+): Promise<BackupEntry> {
+  const response = await pteroFetch<{ attributes: BackupEntry }>(
+    'client',
+    `/servers/${id}/backups/${backupUuid}/lock`,
+    { method: 'POST' },
+  );
+
+  return response.attributes;
+}
+
+export async function restoreBackup(
+  id: ServerIdentifier,
+  backupUuid: string,
+  truncate = false,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/backups/${backupUuid}/restore`, {
+    method: 'POST',
+    body: { truncate },
+  });
+}
+
+export async function deleteBackup(
+  id: ServerIdentifier,
+  backupUuid: string,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/backups/${backupUuid}`, {
+    method: 'DELETE',
   });
 }
