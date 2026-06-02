@@ -1,5 +1,6 @@
 'use server';
 
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { audit } from '@/lib/audit';
 import { requireUser } from '@/lib/auth/current-user';
@@ -46,6 +47,15 @@ function fail(err: unknown): Fail {
 
 function failed(detail: string): Fail {
   return { ok: false, error: 'failed', detail };
+}
+
+const DUPLICATE_DETAIL =
+  '이미 사용 중인 이메일 또는 매핑된 Pterodactyl 유저입니다.';
+
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002'
+  );
 }
 
 export interface PteronUserRow {
@@ -124,9 +134,21 @@ export async function createPteronUserAction(
       });
     } catch (err) {
       if (createdPteroUserId) {
-        await deletePteroUser(createdPteroUserId).catch((deleteErr) => {
+        try {
+          await deletePteroUser(createdPteroUserId);
+        } catch (deleteErr) {
           console.error('compensating ptero user delete failed', deleteErr);
-        });
+          await audit('admin.user.create_orphan', {
+            userId: me.id,
+            metadata: { pteroUserId: createdPteroUserId },
+          });
+          return failed(
+            `Pterodactyl 유저(#${createdPteroUserId})가 생성되었으나 로컬 계정 생성에 실패했고, 정리(삭제)도 실패했습니다. 수동으로 정리해야 합니다.`,
+          );
+        }
+      }
+      if (isUniqueViolation(err)) {
+        return failed(DUPLICATE_DETAIL);
       }
       throw err;
     }
@@ -139,6 +161,9 @@ export async function createPteronUserAction(
 
     return { ok: true, id: user.id };
   } catch (err) {
+    if (isUniqueViolation(err)) {
+      return failed(DUPLICATE_DETAIL);
+    }
     return fail(err);
   }
 }
@@ -201,6 +226,10 @@ export async function updatePteronUserAction(
       patch.passwordHash = await hashPassword(data.password);
     }
 
+    if (Object.keys(patch).length === 0) {
+      return { ok: true };
+    }
+
     await prisma.user.update({ where: { id: data.id }, data: patch });
     await audit('admin.user.update', {
       userId: me.id,
@@ -209,6 +238,9 @@ export async function updatePteronUserAction(
     });
     return { ok: true };
   } catch (err) {
+    if (isUniqueViolation(err)) {
+      return failed(DUPLICATE_DETAIL);
+    }
     return fail(err);
   }
 }
