@@ -49,7 +49,19 @@ export async function listServers(
     data.push(...next.data);
   }
 
-  return data.map((server) => toAccessible(server.attributes));
+  // Map each row defensively: a single malformed row (e.g. an invalid
+  // identifier/uuid) must not throw away the entire list. Skip and warn.
+  return data.flatMap((server) => {
+    try {
+      return [toAccessible(server.attributes)];
+    } catch (error) {
+      console.warn(
+        `Skipping invalid server row (identifier=${server.attributes?.identifier}):`,
+        error,
+      );
+      return [];
+    }
+  });
 }
 
 interface StatsEnvelope {

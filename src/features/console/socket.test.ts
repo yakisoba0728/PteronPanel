@@ -161,4 +161,59 @@ describe('ConsoleSocket', () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
     vi.useRealTimers();
   });
+
+  it('tears down the previous socket on reconnect so its late close cannot spawn a duplicate', async () => {
+    vi.useFakeTimers();
+    const { sock } = setup();
+    await sock.connect();
+    const first = FakeWebSocket.instances.at(-1)!;
+    first.open();
+
+    // Re-connect (e.g. token refresh / manual reconnect): a new socket is created.
+    await sock.connect();
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    const second = FakeWebSocket.instances.at(-1)!;
+    expect(second).not.toBe(first);
+
+    // A late close arriving from the now-orphaned first socket must be ignored:
+    // it must not schedule a reconnect (no third socket).
+    first.onclose?.({ code: 1006 });
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    vi.useRealTimers();
+  });
+
+  it('does not reconnect after the user closes the socket', async () => {
+    vi.useFakeTimers();
+    const { sock } = setup();
+    await sock.connect();
+    const ws = FakeWebSocket.instances.at(-1)!;
+    ws.open();
+
+    sock.close();
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    vi.useRealTimers();
+  });
+
+  it('reconnects with a NEW socket on "token expired" (no re-auth on the dead socket)', async () => {
+    vi.useFakeTimers();
+    const { sock } = setup();
+    await sock.connect();
+    const first = FakeWebSocket.instances.at(-1)!;
+    first.open();
+    const sentBeforeExpiry = first.sent.length;
+
+    first.emit('token expired');
+    // The dead socket must NOT receive another auth frame.
+    expect(first.sent.length).toBe(sentBeforeExpiry);
+    // The socket is closed and a reconnect establishes a brand-new socket.
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(FakeWebSocket.instances.length).toBeGreaterThanOrEqual(2);
+    const reconnected = FakeWebSocket.instances.at(-1)!;
+    expect(reconnected).not.toBe(first);
+    reconnected.open();
+    expect(JSON.parse(reconnected.sent[0])).toEqual({ event: 'auth', args: ['tok-1'] });
+    vi.useRealTimers();
+  });
 });

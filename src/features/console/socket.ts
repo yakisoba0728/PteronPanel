@@ -47,21 +47,36 @@ export class ConsoleSocket {
 
   async connect(): Promise<void> {
     this.clearTokenRefreshTimer();
+    // Tear down any existing socket before opening a new one. Detaching the
+    // handlers (and closing) prevents a late onclose/onmessage/onerror from the
+    // old, now-orphaned socket from racing the new one (e.g. scheduling a second
+    // reconnect or a duplicate token-refresh timer).
+    this.teardownSocket();
+
     const creds = await this.deps.getCredentials();
     const ws = new this.WS(creds.socket);
     this.ws = ws;
 
     ws.onopen = () => {
+      if (ws !== this.ws) return;
       this.reconnectAttempts = 0;
       this.send('auth', [creds.token]);
       this.flushQueue();
       this.scheduleTokenRefresh();
       this.deps.onEvent({ type: 'open' });
     };
-    ws.onmessage = (event: MessageEvent) =>
+    ws.onmessage = (event: MessageEvent) => {
+      if (ws !== this.ws) return;
       void this.handleMessage(typeof event.data === 'string' ? event.data : '');
-    ws.onclose = (event: CloseEvent) => this.handleClose(event.code);
-    ws.onerror = () => this.deps.onEvent({ type: 'error', message: 'WebSocket error' });
+    };
+    ws.onclose = (event: CloseEvent) => {
+      if (ws !== this.ws) return;
+      this.handleClose(event.code);
+    };
+    ws.onerror = () => {
+      if (ws !== this.ws) return;
+      this.deps.onEvent({ type: 'error', message: 'WebSocket error' });
+    };
   }
 
   sendCommand(command: string): void {
@@ -83,7 +98,28 @@ export class ConsoleSocket {
   close(): void {
     this.closedByUser = true;
     this.clearTokenRefreshTimer();
-    this.ws?.close();
+    this.teardownSocket();
+  }
+
+  /**
+   * Detach all handlers from the current socket and close it. Nulling the
+   * handlers first guarantees the old socket can no longer drive any state
+   * transitions (reconnect, token refresh, event emission) once a new socket
+   * has taken its place.
+   */
+  private teardownSocket(): void {
+    const ws = this.ws;
+    if (!ws) return;
+    this.ws = null;
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onclose = null;
+    ws.onerror = null;
+    try {
+      ws.close();
+    } catch {
+      // closing an already-closed socket can throw in some environments; ignore.
+    }
   }
 
   private send(event: string, args: string[]): void {
@@ -130,8 +166,14 @@ export class ConsoleSocket {
         this.deps.onEvent({ type: 'daemon', message: arg0 });
         break;
       case 'token expiring':
-      case 'token expired':
+        // The current socket is still authenticated; refresh in place.
         await this.refreshToken();
+        break;
+      case 'token expired':
+        // The socket's auth has already lapsed — re-authing on the same socket
+        // is useless. Close it and let the exponential-backoff reconnect
+        // re-establish and re-auth on a fresh socket.
+        this.ws?.close();
         break;
       case 'jwt error':
       case 'daemon error':

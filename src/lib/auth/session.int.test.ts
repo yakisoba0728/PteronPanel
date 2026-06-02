@@ -57,10 +57,11 @@ describe('session management (integration)', () => {
     expect(await validateSessionToken(token)).toBeNull();
   });
 
-  it('slides expiry and updates lastSeenAt when a token is valid', async () => {
+  it('slides expiry and updates lastSeenAt when past half of the TTL', async () => {
     const user = await makeUser();
     const { token } = await createSession(user.id);
     const oldLastSeenAt = new Date(Date.now() - 3_600_000);
+    // Near expiry (well under half of the 12h default TTL remaining).
     const oldExpiresAt = new Date(Date.now() + 60_000);
     await prisma.session.updateMany({
       data: { lastSeenAt: oldLastSeenAt, expiresAt: oldExpiresAt },
@@ -69,5 +70,26 @@ describe('session management (integration)', () => {
     const session = await validateSessionToken(token);
     expect(session?.lastSeenAt.getTime()).toBeGreaterThan(oldLastSeenAt.getTime());
     expect(session?.expiresAt.getTime()).toBeGreaterThan(oldExpiresAt.getTime());
+  });
+
+  it('does not write when more than half of the TTL remains', async () => {
+    const user = await makeUser();
+    const { token } = await createSession(user.id);
+    const oldLastSeenAt = new Date(Date.now() - 3_600_000);
+    // Plenty of TTL remaining (default TTL is 12h, so half is 6h).
+    const oldExpiresAt = new Date(Date.now() + 11 * 3_600_000);
+    await prisma.session.updateMany({
+      data: { lastSeenAt: oldLastSeenAt, expiresAt: oldExpiresAt },
+    });
+
+    const session = await validateSessionToken(token);
+    expect(session).not.toBeNull();
+    // The throttle should have skipped the write: timestamps are unchanged.
+    expect(session?.lastSeenAt.getTime()).toBe(oldLastSeenAt.getTime());
+    expect(session?.expiresAt.getTime()).toBe(oldExpiresAt.getTime());
+
+    const row = await prisma.session.findUnique({ where: { tokenHash: hashToken(token) } });
+    expect(row?.lastSeenAt.getTime()).toBe(oldLastSeenAt.getTime());
+    expect(row?.expiresAt.getTime()).toBe(oldExpiresAt.getTime());
   });
 });

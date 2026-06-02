@@ -6,6 +6,7 @@ import { requireUser } from '@/lib/auth/current-user';
 import { requireServerAccess, ServerAccessDeniedError } from '@/lib/authz/guard';
 import { resolveAccessibleServers, type ScopeUser } from '@/lib/authz/access';
 import { getServer, powerServer } from '@/lib/ptero/client';
+import { PteroApiError } from '@/lib/ptero/errors';
 import type { AccessibleServer } from '@/lib/ptero/types';
 import { asIdentifier, type PowerSignal } from '@/lib/ptero/types';
 
@@ -37,7 +38,10 @@ export async function getServerOverview(identifier: string): Promise<{
   };
 }
 
-export type PowerResult = { ok: true } | { ok: false; error: 'not_found' | 'failed' };
+export type PowerResult =
+  | { ok: true }
+  | { ok: false; error: 'not_found' | 'failed' }
+  | { ok: false; error: 'conflict'; detail?: string };
 
 export async function powerServerAction(
   identifier: string,
@@ -55,12 +59,19 @@ export async function powerServerAction(
       metadata: { signal },
     });
     return { ok: true };
-  } catch (error) {
-    if (error instanceof ServerAccessDeniedError) {
+  } catch (err) {
+    if (err instanceof ServerAccessDeniedError) {
       return { ok: false, error: 'not_found' };
     }
 
-    console.error('powerServerAction failed', error);
+    // Wings returns 409 when the server is in a state that cannot accept the
+    // requested power action (e.g. starting an already-running server). Surface
+    // it as a distinct, non-error outcome instead of a generic failure.
+    if (err instanceof PteroApiError && err.httpStatus === 409) {
+      return { ok: false, error: 'conflict', detail: err.primary?.detail };
+    }
+
+    console.error('powerServerAction failed', err);
     return { ok: false, error: 'failed' };
   }
 }

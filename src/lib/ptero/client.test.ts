@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { mswServer } from '@/test/msw/server';
 import {
@@ -87,6 +87,53 @@ describe('client.listServers', () => {
 
     expect(seenPages).toEqual(['1', '2']);
     expect(servers.map((server) => server.name)).toEqual(['Page 1', 'Page 2']);
+  });
+
+  it('skips rows that fail validation instead of throwing the whole list', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mswServer.use(
+      http.get(`${BASE}/`, () =>
+        HttpResponse.json({
+          object: 'list',
+          data: [
+            {
+              object: 'server',
+              attributes: {
+                // invalid: identifier length !== 8
+                identifier: 'bad',
+                internal_id: 1,
+                uuid: '11111111-0000-4000-8000-000000000000',
+                name: 'Broken',
+              },
+            },
+            {
+              object: 'server',
+              attributes: {
+                identifier: '1a2b3c4d',
+                internal_id: 2,
+                uuid: '1a2b3c4d-5e6f-7081-9234-567890abcdef',
+                name: 'Good',
+              },
+            },
+          ],
+          meta: {
+            pagination: {
+              total: 2,
+              count: 2,
+              per_page: 50,
+              current_page: 1,
+              total_pages: 1,
+            },
+          },
+        })
+      )
+    );
+
+    const servers = await listServers('admin-all');
+
+    expect(servers.map((server) => server.name)).toEqual(['Good']);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
 

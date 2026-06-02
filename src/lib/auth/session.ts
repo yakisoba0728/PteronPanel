@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import type { Session, User } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { getConfig } from '@/lib/config';
@@ -9,8 +9,11 @@ export function generateSessionToken(): string {
   return randomBytes(32).toString('base64url');
 }
 
+// Keyed (HMAC) hash of the session token so that the value stored in the DB is
+// not a bare SHA-256 of the token: a read-only DB leak alone cannot be used to
+// forge a session-token lookup without also knowing SESSION_SECRET.
 export function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
+  return createHmac('sha256', getConfig().SESSION_SECRET).update(token).digest('hex');
 }
 
 export async function createSession(
@@ -53,17 +56,24 @@ export async function validateSessionToken(
 
   if (!session.user.isActive) return null;
 
-  const now = new Date();
-  const ttlHours = getConfig().SESSION_TTL_HOURS;
-  const updated = await prisma.session.update({
-    where: { id: session.id },
-    data: {
-      lastSeenAt: now,
-      expiresAt: new Date(now.getTime() + ttlHours * 3_600_000),
-    },
-  });
+  // Sliding expiry, but throttled: only refresh lastSeenAt/expiresAt once the
+  // session is past the halfway point of its TTL. This avoids a DB write on
+  // every single authenticated request while still keeping active sessions
+  // alive well before they expire.
+  const ttlMs = getConfig().SESSION_TTL_HOURS * 3_600_000;
+  if (session.expiresAt.getTime() - Date.now() < ttlMs / 2) {
+    const now = new Date();
+    const updated = await prisma.session.update({
+      where: { id: session.id },
+      data: {
+        lastSeenAt: now,
+        expiresAt: new Date(now.getTime() + ttlMs),
+      },
+    });
+    return { ...updated, user: session.user };
+  }
 
-  return { ...updated, user: session.user };
+  return { ...session };
 }
 
 export async function destroySession(token: string): Promise<void> {

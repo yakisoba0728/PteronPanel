@@ -39,7 +39,19 @@ export async function getOwnedServers(
   >('application', `/users/${pteroUserId}`, { query: { include: 'servers' } });
 
   const servers = response.attributes.relationships?.servers?.data ?? [];
-  return servers.map((server) => toAccessible(server.attributes));
+  // Map each row defensively: a single malformed row (e.g. an invalid
+  // identifier/uuid) must not throw away the entire list. Skip and warn.
+  return servers.flatMap((server) => {
+    try {
+      return [toAccessible(server.attributes)];
+    } catch (error) {
+      console.warn(
+        `Skipping invalid server row (identifier=${server.attributes?.identifier}):`,
+        error,
+      );
+      return [];
+    }
+  });
 }
 
 export async function paginateAll<A>(
