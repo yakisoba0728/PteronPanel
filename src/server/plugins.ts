@@ -5,6 +5,7 @@ import { audit } from '@/lib/audit';
 import { requireUser } from '@/lib/auth/current-user';
 import { decryptSecret, encryptSecret } from '@/lib/crypto';
 import { prisma } from '@/lib/db';
+import { generateContextToken } from '@/lib/plugins/context-token';
 import { deliverWebhook } from '@/lib/plugins/webhook';
 import {
   generatePluginToken,
@@ -225,4 +226,14 @@ export async function retryDeliveryAction(
   });
 
   return { ok: true };
+}
+
+export async function getPluginContextAction(pluginId: string): Promise<Ok<{ token: string }> | Fail> {
+  const user = await requireUser();
+  const plugin = await prisma.plugin.findFirst({
+    where: { id: pluginId, ownerId: user.id, enabled: true, uiTabUrl: { not: null } },
+  });
+  if (!plugin) return { ok: false, error: 'not_found' };
+
+  return { ok: true, token: generateContextToken(plugin.id, user.id, 5 * 60 * 1000) };
 }
