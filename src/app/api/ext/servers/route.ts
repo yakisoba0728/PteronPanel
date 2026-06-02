@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { resolveAccessibleServers } from '@/lib/authz/access';
 import { authenticatePlugin } from '@/lib/plugins/auth';
-import { extError } from '@/lib/plugins/respond';
+import { extError, extRateLimit } from '@/lib/plugins/respond';
 
 export async function GET(req: Request) {
   const ctx = await authenticatePlugin(req);
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const limited = extRateLimit(ctx);
+  if (limited) return limited;
 
   try {
     const servers = await resolveAccessibleServers(ctx.owner);

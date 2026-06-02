@@ -10,6 +10,7 @@ import {
   listPluginsAction,
   registerPluginAction,
   rotatePluginTokenAction,
+  rotateWebhookSecretAction,
   setPluginEnabledAction,
   type PluginRow,
 } from '@/server/plugins';
@@ -21,6 +22,8 @@ const EVENTS = [
   'backup.restore',
   'file.write',
   'file.delete',
+  'server.create',
+  'server.delete',
 ];
 
 export function PluginsManager() {
@@ -92,6 +95,12 @@ export function PluginsManager() {
     const res = await rotatePluginTokenAction(plugin.id);
     if (res.ok) setSecret({ token: res.token, webhookSecret: '(unchanged)' });
     else setMsg('토큰 회전 실패');
+  }
+
+  async function rotateWebhookSecret(plugin: PluginRow) {
+    const res = await rotateWebhookSecretAction(plugin.id);
+    if (res.ok) setSecret({ token: '(unchanged)', webhookSecret: res.webhookSecret });
+    else setMsg('webhook 시크릿 회전 실패');
   }
 
   async function remove(plugin: PluginRow) {
@@ -237,6 +246,14 @@ export function PluginsManager() {
                       <Button variant="ghost" onClick={() => rotate(plugin)}>
                         토큰 회전
                       </Button>
+                      {plugin.webhookUrl && (
+                        <Button
+                          variant="ghost"
+                          onClick={() => rotateWebhookSecret(plugin)}
+                        >
+                          시크릿 회전
+                        </Button>
+                      )}
                       <Button variant="danger" onClick={() => remove(plugin)}>
                         삭제
                       </Button>

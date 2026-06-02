@@ -8,6 +8,7 @@ const { deliverMock, prismaMock, resolveMock } = vi.hoisted(() => {
         id: where.id,
         role: 'USER',
         pteroUserId: where.id === 'u1' ? 7 : 8,
+        isActive: true,
       })),
     },
     webhookDelivery: {
@@ -16,7 +17,7 @@ const { deliverMock, prismaMock, resolveMock } = vi.hoisted(() => {
     },
   };
   return {
-    deliverMock: vi.fn(async () => ({ ok: true, status: 200 })),
+    deliverMock: vi.fn(async () => ({ ok: true, attempts: 1, status: 200 })),
     prismaMock: prisma,
     resolveMock: vi.fn(),
   };
@@ -60,5 +61,28 @@ describe('selectTargetPlugins', () => {
     const targets = await selectTargetPlugins('server.power', '1a2b3c4d');
 
     expect(targets.map((t) => t.id)).toEqual(['p1']);
+  });
+
+  it('skips plugins owned by inactive users', async () => {
+    prismaMock.plugin.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        ownerId: 'u1',
+        webhookUrl: 'https://a',
+        webhookSecretEnc: 'e1',
+        events: ['server.power'],
+      },
+    ]);
+    prismaMock.user.findUnique.mockResolvedValueOnce({
+      id: 'u1',
+      role: 'USER',
+      pteroUserId: 7,
+      isActive: false,
+    });
+
+    const targets = await selectTargetPlugins('server.power', '1a2b3c4d');
+
+    expect(targets).toEqual([]);
+    expect(resolveMock).not.toHaveBeenCalled();
   });
 });

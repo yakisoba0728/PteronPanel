@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  currentUser: { id: 'u1', role: 'USER', pteroUserId: 7 } as any,
-  deliverWebhook: vi.fn(async () => ({ ok: true, status: 200 })),
+  currentUser: { id: 'u1', role: 'USER' as const, pteroUserId: 7 },
+  deliverWebhook: vi.fn(async () => ({ ok: true, attempts: 2, status: 200 })),
   prisma: {
     plugin: {
       findFirst: vi.fn(async () => ({
@@ -21,12 +21,26 @@ const mocks = vi.hoisted(() => ({
           attempts: 1,
           responseCode: 500,
           createdAt: new Date('2026-06-02T00:00:00.000Z'),
+          payload: {
+            id: 'd1',
+            event: 'server.power',
+            server: '1a2b3c4d',
+            actor: 'u1',
+            data: { signal: 'restart' },
+          },
         },
       ]),
       findFirst: vi.fn(async () => ({
         id: 'd1',
         pluginId: 'pl1',
         event: 'server.power',
+        payload: {
+          id: 'd1',
+          event: 'server.power',
+          server: '1a2b3c4d',
+          actor: 'u1',
+          data: { signal: 'restart' },
+        },
       })),
       update: vi.fn(async () => ({})),
     },
@@ -56,7 +70,9 @@ describe('deliveries', () => {
 
     expect(r.ok && r.deliveries[0].id).toBe('d1');
     expect(mocks.prisma.plugin.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'pl1', ownerId: 'u1' } }),
+      expect.objectContaining({
+        where: { id: 'pl1', ownerId: 'u1', enabled: true },
+      }),
     );
   });
 
@@ -67,10 +83,20 @@ describe('deliveries', () => {
     expect(mocks.deliverWebhook).toHaveBeenCalledWith('https://a', 'dec', {
       id: 'd1',
       event: 'server.power',
-      server: null,
-      actor: null,
-      data: {},
+      server: '1a2b3c4d',
+      actor: 'u1',
+      data: { signal: 'restart' },
       retry: true,
     });
+    expect(mocks.prisma.plugin.findFirst).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { id: 'pl1', ownerId: 'u1', enabled: true },
+      }),
+    );
+    expect(mocks.prisma.webhookDelivery.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ attempts: { increment: 2 } }),
+      }),
+    );
   });
 });

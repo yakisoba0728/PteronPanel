@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   listDeliveriesAction,
@@ -12,7 +12,7 @@ export function Deliveries({ pluginId }: { pluginId: string }) {
   const [rows, setRows] = useState<DeliveryRow[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     const result = await listDeliveriesAction(pluginId);
     if (result.ok) {
       setRows(result.deliveries);
@@ -20,11 +20,11 @@ export function Deliveries({ pluginId }: { pluginId: string }) {
     } else {
       setMsg('실패');
     }
-  }
+  }, [pluginId]);
 
   useEffect(() => {
     void load();
-  }, [pluginId]);
+  }, [load]);
 
   async function retry(id: string) {
     const result = await retryDeliveryAction(pluginId, id);

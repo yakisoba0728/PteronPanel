@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
 import { ServerAccessDeniedError } from '@/lib/authz/guard';
 import { PteroApiError } from '@/lib/ptero/errors';
+import type { PluginContext } from './auth';
+import { consumePluginRateLimit } from './rate-limit';
+
+export function extRateLimit(ctx: PluginContext): NextResponse | null {
+  if (consumePluginRateLimit(ctx.pluginId)) return null;
+  return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+}
 
 export function extError(err: unknown): NextResponse {
   if (err instanceof ServerAccessDeniedError) {

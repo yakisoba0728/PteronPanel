@@ -84,6 +84,7 @@ model WebhookDelivery {
   attempts     Int      @default(0)
   responseCode Int?
   error        String?
+  payload      Json?
   createdAt    DateTime @default(now())
 
   @@index([pluginId, createdAt])

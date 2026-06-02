@@ -1,5 +1,6 @@
 'use server';
 
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { audit } from '@/lib/audit';
 import { requireUser } from '@/lib/auth/current-user';
@@ -7,6 +8,7 @@ import { decryptSecret, encryptSecret } from '@/lib/crypto';
 import { prisma } from '@/lib/db';
 import { generateContextToken } from '@/lib/plugins/context-token';
 import { deliverWebhook } from '@/lib/plugins/webhook';
+import { validateExternalHttpUrl, validatePluginUiUrl } from '@/lib/plugins/url-safety';
 import {
   generatePluginToken,
   generateWebhookSecret,
@@ -53,6 +55,29 @@ const RegisterSchema = z.object({
   events: z.array(z.string().regex(/^[a-z]+\.[a-z_]+$/)).default([]),
 });
 
+function retryPayload(delivery: {
+  id: string;
+  event: string;
+  payload: Prisma.JsonValue | null;
+}): Record<string, unknown> {
+  if (
+    delivery.payload &&
+    typeof delivery.payload === 'object' &&
+    !Array.isArray(delivery.payload)
+  ) {
+    return { ...delivery.payload, retry: true };
+  }
+
+  return {
+    id: delivery.id,
+    event: delivery.event,
+    server: null,
+    actor: null,
+    data: {},
+    retry: true,
+  };
+}
+
 function row(plugin: PluginRow): PluginRow {
   return {
     id: plugin.id,
@@ -90,6 +115,13 @@ export async function registerPluginAction(
   }
 
   const data = parsed.data;
+  if (data.webhookUrl && !validateExternalHttpUrl(data.webhookUrl)) {
+    return { ok: false, error: 'validation', detail: 'unsafe webhook URL' };
+  }
+  if (data.uiTabUrl && !validatePluginUiUrl(data.uiTabUrl)) {
+    return { ok: false, error: 'validation', detail: 'unsafe UI tab URL' };
+  }
+
   const token = generatePluginToken();
   const webhookSecret = generateWebhookSecret();
   const created = await prisma.plugin.create({
@@ -147,6 +179,23 @@ export async function rotatePluginTokenAction(id: string): Promise<Ok<{ token: s
   return { ok: true, token };
 }
 
+export async function rotateWebhookSecretAction(
+  id: string,
+): Promise<Ok<{ webhookSecret: string }> | Fail> {
+  const user = await requireUser();
+  const plugin = await ownPlugin(user.id, id);
+  if (!plugin?.webhookUrl) return { ok: false, error: 'not_found' };
+
+  const webhookSecret = generateWebhookSecret();
+  await prisma.plugin.update({
+    where: { id },
+    data: { webhookSecretEnc: encryptSecret(webhookSecret) },
+  });
+  await audit('plugin.rotate_webhook_secret', { userId: user.id, target: id });
+
+  return { ok: true, webhookSecret };
+}
+
 export async function deletePluginAction(id: string): Promise<Ok | Fail> {
   const user = await requireUser();
   if (!(await ownPlugin(user.id, id))) return { ok: false, error: 'not_found' };
@@ -162,7 +211,7 @@ export async function listDeliveriesAction(
 ): Promise<Ok<{ deliveries: DeliveryRow[] }> | Fail> {
   const user = await requireUser();
   const plugin = await prisma.plugin.findFirst({
-    where: { id: pluginId, ownerId: user.id },
+    where: { id: pluginId, ownerId: user.id, enabled: true },
   });
   if (!plugin) return { ok: false, error: 'not_found' };
 
@@ -191,7 +240,7 @@ export async function retryDeliveryAction(
 ): Promise<Ok | Fail> {
   const user = await requireUser();
   const plugin = await prisma.plugin.findFirst({
-    where: { id: pluginId, ownerId: user.id },
+    where: { id: pluginId, ownerId: user.id, enabled: true },
   });
   if (!plugin || !plugin.webhookUrl || !plugin.webhookSecretEnc) {
     return { ok: false, error: 'not_found' };
@@ -202,14 +251,7 @@ export async function retryDeliveryAction(
   });
   if (!delivery) return { ok: false, error: 'not_found' };
 
-  const payload = {
-    id: delivery.id,
-    event: delivery.event,
-    server: null,
-    actor: null,
-    data: {},
-    retry: true,
-  };
+  const payload = retryPayload(delivery);
   const result = await deliverWebhook(
     plugin.webhookUrl,
     decryptSecret(plugin.webhookSecretEnc),
@@ -219,7 +261,7 @@ export async function retryDeliveryAction(
     where: { id: delivery.id },
     data: {
       status: result.ok ? 'success' : 'failed',
-      attempts: { increment: 1 },
+      attempts: { increment: result.attempts },
       responseCode: result.status ?? null,
       error: result.error ?? null,
     },

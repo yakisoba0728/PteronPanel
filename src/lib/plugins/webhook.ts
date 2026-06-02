@@ -1,7 +1,9 @@
 import { createHmac } from 'node:crypto';
+import { assertSafeWebhookUrl } from './url-safety';
 
 export interface DeliverResult {
   ok: boolean;
+  attempts: number;
   status?: number;
   error?: string;
 }
@@ -20,6 +22,13 @@ export async function deliverWebhook(
   payload: unknown,
   opts: { retries?: number; timeoutMs?: number } = {},
 ): Promise<DeliverResult> {
+  let safeUrl: URL;
+  try {
+    safeUrl = await assertSafeWebhookUrl(url);
+  } catch (err) {
+    return { ok: false, attempts: 0, error: err instanceof Error ? err.message : 'unsafe_url' };
+  }
+
   const body = JSON.stringify(payload);
   const max = opts.retries ?? 2;
 
@@ -29,8 +38,9 @@ export async function deliverWebhook(
     const timer = setTimeout(() => ac.abort(), opts.timeoutMs ?? 10_000);
 
     try {
-      const res = await fetch(url, {
+      const res = await fetch(safeUrl, {
         method: 'POST',
+        redirect: 'manual',
         headers: {
           'Content-Type': 'application/json',
           'X-Pteron-Event': (payload as { event?: string }).event ?? '',
@@ -42,13 +52,16 @@ export async function deliverWebhook(
       });
       clearTimeout(timer);
 
-      if (res.ok) return { ok: true, status: res.status };
-      if (attempt >= max) return { ok: false, status: res.status };
+      if (res.ok) return { ok: true, attempts: attempt + 1, status: res.status };
+      if (attempt >= max) {
+        return { ok: false, attempts: attempt + 1, status: res.status };
+      }
     } catch (err) {
       clearTimeout(timer);
       if (attempt >= max) {
         return {
           ok: false,
+          attempts: attempt + 1,
           error: err instanceof Error ? err.message : 'network',
         };
       }

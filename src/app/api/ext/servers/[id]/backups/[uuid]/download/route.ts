@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireServerPermission } from '@/lib/authz/guard';
 import { getBackupDownloadUrl } from '@/lib/ptero/client';
 import { authenticatePlugin } from '@/lib/plugins/auth';
-import { extError } from '@/lib/plugins/respond';
+import { extError, extRateLimit } from '@/lib/plugins/respond';
 import { pluginServer } from '@/lib/plugins/scope';
 
 export async function GET(
@@ -11,6 +11,8 @@ export async function GET(
 ) {
   const ctx = await authenticatePlugin(req);
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const limited = extRateLimit(ctx);
+  if (limited) return limited;
 
   try {
     const { id, uuid } = await params;

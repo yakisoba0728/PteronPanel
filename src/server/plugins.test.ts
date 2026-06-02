@@ -4,13 +4,24 @@ const mocks = vi.hoisted(() => ({
   prisma: {
     plugin: {
       findMany: vi.fn(async () => []),
-      create: vi.fn(async ({ data }: any) => ({ id: 'pl1', ...data })),
-      findFirst: vi.fn(async () => ({ id: 'pl1', ownerId: 'u1', enabled: true })),
-      update: vi.fn(async ({ data }: any) => ({ id: 'pl1', ...data })),
+      create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({
+        id: 'pl1',
+        ...data,
+      })),
+      findFirst: vi.fn(async () => ({
+        id: 'pl1',
+        ownerId: 'u1',
+        enabled: true,
+        webhookUrl: 'https://hook.example.com',
+      })),
+      update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({
+        id: 'pl1',
+        ...data,
+      })),
       delete: vi.fn(async () => ({ id: 'pl1' })),
     },
   },
-  currentUser: { id: 'u1', role: 'USER', pteroUserId: 7 } as any,
+  currentUser: { id: 'u1', role: 'USER' as const, pteroUserId: 7 },
 }));
 
 vi.mock('@/lib/db', () => ({ prisma: mocks.prisma }));
@@ -19,7 +30,12 @@ vi.mock('@/lib/auth/current-user', () => ({
   requireUser: vi.fn(async () => mocks.currentUser),
 }));
 
-import { deletePluginAction, listPluginsAction, registerPluginAction } from './plugins';
+import {
+  deletePluginAction,
+  listPluginsAction,
+  registerPluginAction,
+  rotateWebhookSecretAction,
+} from './plugins';
 
 beforeEach(() => {
   mocks.currentUser = { id: 'u1', role: 'USER', pteroUserId: 7 };
@@ -57,6 +73,26 @@ describe('plugin actions', () => {
     await deletePluginAction('pl1');
     expect(mocks.prisma.plugin.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'pl1', ownerId: 'u1' } }),
+    );
+  });
+
+  it('rotates the webhook secret for an owned webhook plugin', async () => {
+    mocks.prisma.plugin.findFirst.mockResolvedValueOnce({
+      id: 'pl1',
+      ownerId: 'u1',
+      enabled: true,
+      webhookUrl: 'https://hook.example.com',
+    });
+
+    const res = await rotateWebhookSecretAction('pl1');
+
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.webhookSecret).toMatch(/^[0-9a-f]{64}$/);
+    expect(mocks.prisma.plugin.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'pl1' },
+        data: expect.objectContaining({ webhookSecretEnc: expect.any(String) }),
+      }),
     );
   });
 });

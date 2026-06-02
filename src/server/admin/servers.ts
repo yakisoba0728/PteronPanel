@@ -7,6 +7,11 @@ import * as app from '@/lib/ptero/application';
 import type { PteroServer, PteroNest, PteroEgg } from '@/lib/ptero/types';
 import { audit } from '@/lib/audit';
 import { PteroApiError, friendlyMessage } from '@/lib/ptero/errors';
+import {
+  dispatchEventToTargets,
+  emitEvent,
+  selectTargetPlugins,
+} from '@/lib/plugins/events';
 
 type Fail = {
   ok: false;
@@ -135,6 +140,11 @@ export async function createServerAction(
       target: String(server.id),
       metadata: { name: data.name, egg: data.egg },
     });
+    void emitEvent('server.create', {
+      serverIdentifier: server.identifier,
+      actorUserId: me.id,
+      data: { id: server.id, name: server.name, user: server.user },
+    });
     return { ok: true, id: server.id };
   } catch (err) {
     return fail(err);
@@ -184,12 +194,40 @@ export async function deleteServerAction(
 ): Promise<Ok | Fail> {
   try {
     const me = await admin();
+    let deleteEvent:
+      | {
+          identifier: string;
+          targets: Awaited<ReturnType<typeof selectTargetPlugins>>;
+        }
+      | null = null;
+    try {
+      const server = await app.getServerAdmin(id);
+      deleteEvent = {
+        identifier: server.identifier,
+        targets: await selectTargetPlugins('server.delete', server.identifier),
+      };
+    } catch (lookupError) {
+      console.warn('server.delete event target lookup failed', lookupError);
+    }
     await app.deleteServer(id, force);
     await audit('admin.server.delete', {
       userId: me.id,
       target: String(id),
       metadata: { force },
     });
+    if (deleteEvent) {
+      void dispatchEventToTargets(
+        'server.delete',
+        {
+          serverIdentifier: deleteEvent.identifier,
+          actorUserId: me.id,
+          data: { id, force },
+        },
+        deleteEvent.targets,
+      ).catch((dispatchError) => {
+        console.error('server.delete event dispatch failed', dispatchError);
+      });
+    }
     return { ok: true };
   } catch (err) {
     return fail(err);
