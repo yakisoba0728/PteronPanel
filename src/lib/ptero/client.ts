@@ -1,9 +1,10 @@
-import { pteroFetch } from './http';
+import { pteroFetch, pteroFetchText } from './http';
 import {
   asIdentifier,
   asNumericId,
   asUuid,
   type AccessibleServer,
+  type FileEntry,
   type PowerSignal,
   type PteroItem,
   type PteroList,
@@ -127,4 +128,168 @@ export async function getWebsocketCredentials(
   );
 
   return response.data;
+}
+
+interface SignedUrl {
+  attributes: { url: string };
+}
+
+export async function listFiles(
+  id: ServerIdentifier,
+  directory = '/',
+): Promise<FileEntry[]> {
+  const response = await pteroFetch<PteroList<FileEntry>>(
+    'client',
+    `/servers/${id}/files/list`,
+    { query: { directory } },
+  );
+
+  return response.data.map((item) => item.attributes);
+}
+
+export function getFileContents(
+  id: ServerIdentifier,
+  file: string,
+): Promise<string> {
+  return pteroFetchText('client', `/servers/${id}/files/contents`, {
+    query: { file },
+  });
+}
+
+export async function writeFile(
+  id: ServerIdentifier,
+  file: string,
+  content: string,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/files/write`, {
+    method: 'POST',
+    rawBody: content,
+    contentType: 'text/plain',
+    query: { file },
+  });
+}
+
+export async function getFileDownloadUrl(
+  id: ServerIdentifier,
+  file: string,
+): Promise<string> {
+  const response = await pteroFetch<SignedUrl>(
+    'client',
+    `/servers/${id}/files/download`,
+    { query: { file } },
+  );
+
+  return response.attributes.url;
+}
+
+export async function getFileUploadUrl(
+  id: ServerIdentifier,
+): Promise<string> {
+  const response = await pteroFetch<SignedUrl>(
+    'client',
+    `/servers/${id}/files/upload`,
+  );
+
+  return response.attributes.url;
+}
+
+export async function renameFiles(
+  id: ServerIdentifier,
+  root: string,
+  files: Array<{ from: string; to: string }>,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/files/rename`, {
+    method: 'PUT',
+    body: { root, files },
+  });
+}
+
+export async function copyFile(
+  id: ServerIdentifier,
+  location: string,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/files/copy`, {
+    method: 'POST',
+    body: { location },
+  });
+}
+
+export async function compressFiles(
+  id: ServerIdentifier,
+  root: string,
+  files: string[],
+): Promise<FileEntry> {
+  const response = await pteroFetch<{ attributes: FileEntry }>(
+    'client',
+    `/servers/${id}/files/compress`,
+    { method: 'POST', body: { root, files } },
+  );
+
+  return response.attributes;
+}
+
+export async function decompressFile(
+  id: ServerIdentifier,
+  root: string,
+  file: string,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/files/decompress`, {
+    method: 'POST',
+    body: { root, file },
+  });
+}
+
+export async function deleteFiles(
+  id: ServerIdentifier,
+  root: string,
+  files: string[],
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/files/delete`, {
+    method: 'POST',
+    body: { root, files },
+  });
+}
+
+export async function createFolder(
+  id: ServerIdentifier,
+  root: string,
+  name: string,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/files/create-folder`, {
+    method: 'POST',
+    body: { root, name },
+  });
+}
+
+export async function chmodFiles(
+  id: ServerIdentifier,
+  root: string,
+  files: Array<{ file: string; mode: string }>,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/files/chmod`, {
+    method: 'POST',
+    body: { root, files },
+  });
+}
+
+export async function pullRemoteFile(
+  id: ServerIdentifier,
+  opts: {
+    url: string;
+    directory?: string;
+    filename?: string;
+    useHeader?: boolean;
+    foreground?: boolean;
+  },
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/files/pull`, {
+    method: 'POST',
+    body: {
+      url: opts.url,
+      directory: opts.directory,
+      filename: opts.filename,
+      use_header: opts.useHeader,
+      foreground: opts.foreground,
+    },
+  });
 }
