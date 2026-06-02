@@ -9,7 +9,9 @@ export interface ScopeUser {
   pteroUserId: number | null;
 }
 
-const cache = new TtlCache<string, AccessibleServer[]>(45_000);
+// Per-user accessible-server lists. Bound the cache so a long-lived process
+// with many distinct users cannot grow it without limit (TTL + LRU eviction).
+const cache = new TtlCache<string, AccessibleServer[]>(45_000, 5_000);
 
 export async function resolveAccessibleServers(user: ScopeUser): Promise<AccessibleServer[]> {
   const hit = cache.get(user.id);
