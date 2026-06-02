@@ -94,3 +94,24 @@ export interface BackupEntry {
   created_at: string;
   completed_at: string | null;
 }
+
+export interface PteroUser {
+  id: number;
+  uuid: string;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  root_admin: boolean;
+  created_at: string;
+}
+
+export interface CreatePteroUserInput {
+  email: string;
+  username: string;
+  first_name: string;
+  last_name: string;
+  password?: string;
+  root_admin?: boolean;
+  external_id?: string;
+}

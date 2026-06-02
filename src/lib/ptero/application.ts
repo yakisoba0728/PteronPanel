@@ -4,8 +4,10 @@ import {
   asNumericId,
   asUuid,
   type AccessibleServer,
+  type CreatePteroUserInput,
   type PteroItem,
   type PteroList,
+  type PteroUser,
 } from './types';
 
 interface AppServerAttrs {
@@ -78,4 +80,45 @@ export async function findUserByEmail(
   });
   const match = res.data.find((user) => user.attributes.email.toLowerCase() === email.toLowerCase());
   return match ? { id: match.attributes.id, uuid: match.attributes.uuid } : null;
+}
+
+export async function listUsers(): Promise<PteroUser[]> {
+  const items = await paginateAll<PteroUser>((page) =>
+    pteroFetch('application', '/users', { query: { page, per_page: 100 } }),
+  );
+  return items.map((item) => item.attributes);
+}
+
+export async function getUser(id: number): Promise<PteroUser> {
+  const res = await pteroFetch<PteroItem<PteroUser>>(
+    'application',
+    `/users/${id}`,
+  );
+  return res.attributes;
+}
+
+export async function createUser(
+  input: CreatePteroUserInput,
+): Promise<PteroUser> {
+  const res = await pteroFetch<PteroItem<PteroUser>>('application', '/users', {
+    method: 'POST',
+    body: input,
+  });
+  return res.attributes;
+}
+
+export async function updateUser(
+  id: number,
+  input: Partial<CreatePteroUserInput>,
+): Promise<PteroUser> {
+  const res = await pteroFetch<PteroItem<PteroUser>>(
+    'application',
+    `/users/${id}`,
+    { method: 'PATCH', body: input },
+  );
+  return res.attributes;
+}
+
+export async function deleteUser(id: number): Promise<void> {
+  await pteroFetch('application', `/users/${id}`, { method: 'DELETE' });
 }
