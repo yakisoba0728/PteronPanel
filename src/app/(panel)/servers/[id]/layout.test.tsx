@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { asIdentifier, asUuid } from '@/lib/ptero/types';
 
@@ -29,6 +29,10 @@ vi.mock('@/lib/authz/access', () => ({
 }));
 
 describe('ServerLayout', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('renders the server header and built-in tabs when access is allowed', async () => {
     const { default: ServerLayout } = await import('./layout');
 
@@ -56,6 +60,25 @@ describe('ServerLayout', () => {
     expect(markup).toContain('href="/servers/1a2b3c4d"');
     expect(markup).toContain('href="/servers/1a2b3c4d/console"');
     expect(markup).toContain('Body');
+  });
+
+  it('throws notFound for a malformed identifier (not 8 chars)', async () => {
+    const { default: ServerLayout } = await import('./layout');
+
+    requireUser.mockResolvedValue({
+      id: 'user-1',
+      role: 'USER',
+      pteroUserId: 7,
+    });
+
+    await expect(
+      ServerLayout({
+        children: <p>Body</p>,
+        params: Promise.resolve({ id: 'short' }),
+      }),
+    ).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(notFound).toHaveBeenCalledTimes(1);
+    expect(resolveAccessibleServers).not.toHaveBeenCalled();
   });
 
   it('throws notFound when access is denied', async () => {

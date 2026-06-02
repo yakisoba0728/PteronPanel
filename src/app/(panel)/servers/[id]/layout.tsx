@@ -15,11 +15,18 @@ export default async function ServerLayout({
   const { id } = await params;
   const user = await requireUser();
 
+  let identifier;
+  try {
+    identifier = asIdentifier(id);
+  } catch {
+    notFound();
+  }
+
   let name = id;
   try {
     const server = await requireServerAccess(
       { id: user.id, role: user.role, pteroUserId: user.pteroUserId },
-      asIdentifier(id),
+      identifier,
     );
     name = server.name;
   } catch (error) {
