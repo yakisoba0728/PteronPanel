@@ -49,6 +49,7 @@ function json(res, body, status = 200) {
 const server = createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://127.0.0.1');
   const { pathname } = url;
+  const method = req.method;
 
   if (
     pathname === '/api/application/users' &&
@@ -127,6 +128,104 @@ const server = createServer((req, res) => {
         {
           object: 'location',
           attributes: { id: 1, short: 'kr', long: 'Korea' },
+        },
+      ]),
+    );
+  }
+
+  if (pathname === '/api/application/nests') {
+    return json(
+      res,
+      list([
+        {
+          object: 'nest',
+          attributes: { id: 1, name: 'Minecraft', description: null },
+        },
+      ]),
+    );
+  }
+
+  if (pathname === '/api/application/nests/1/eggs') {
+    return json(
+      res,
+      list([
+        {
+          object: 'egg',
+          attributes: {
+            id: 5,
+            name: 'Paper',
+            docker_image: 'ghcr.io/pterodactyl/yolks:java_17',
+            startup: 'java -jar server.jar',
+          },
+        },
+      ]),
+    );
+  }
+
+  if (pathname === '/api/application/nests/1/eggs/5') {
+    return json(res, {
+      object: 'egg',
+      attributes: {
+        id: 5,
+        name: 'Paper',
+        docker_image: 'ghcr.io/pterodactyl/yolks:java_17',
+        startup: 'java -jar server.jar',
+        relationships: {
+          variables: {
+            object: 'list',
+            data: [
+              {
+                object: 'egg_variable',
+                attributes: {
+                  name: 'Version',
+                  description: '',
+                  env_variable: 'MC_VERSION',
+                  default_value: 'latest',
+                  rules: 'required|string',
+                  user_editable: true,
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+  }
+
+  if (pathname === '/api/application/servers' && method === 'POST') {
+    return json(res, {
+      object: 'server',
+      attributes: {
+        id: 99,
+        uuid: 'new-uuid',
+        identifier: 'newserv',
+        name: 'E2E Server',
+        user: 7,
+        node: 1,
+        suspended: false,
+        limits: { memory: 1024, swap: 0, disk: 5120, io: 500, cpu: 100 },
+        feature_limits: { databases: 1, allocations: 1, backups: 1 },
+      },
+    });
+  }
+
+  if (pathname === '/api/application/servers') {
+    return json(
+      res,
+      list([
+        {
+          object: 'server',
+          attributes: {
+            id: 12,
+            uuid: 'u',
+            identifier: '1a2b3c4d',
+            name: 'User Server',
+            user: 7,
+            node: 1,
+            suspended: false,
+            limits: { memory: 1024, swap: 0, disk: 5120, io: 500, cpu: 100 },
+            feature_limits: { databases: 1, allocations: 1, backups: 1 },
+          },
         },
       ]),
     );
