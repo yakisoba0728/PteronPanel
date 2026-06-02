@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { Fragment, useEffect, useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Deliveries } from '@/features/plugins/deliveries';
 import {
   deletePluginAction,
   listPluginsAction,
@@ -37,6 +38,7 @@ export function PluginsManager() {
     webhookSecret: string;
   } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [openLogs, setOpenLogs] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   function load() {
@@ -200,39 +202,55 @@ export function PluginsManager() {
           </thead>
           <tbody>
             {plugins.map((plugin) => (
-              <tr
-                key={plugin.id}
-                className="border-t border-zinc-100 dark:border-zinc-800"
-              >
-                <td className="px-4 py-2">
-                  <div className="font-medium">{plugin.name}</div>
-                  {plugin.description && (
-                    <div className="text-xs text-zinc-500">{plugin.description}</div>
-                  )}
-                </td>
-                <td className="max-w-xs truncate px-4 py-2 text-zinc-500">
-                  {plugin.webhookUrl ?? '-'}
-                </td>
-                <td className="px-4 py-2 text-xs text-zinc-500">
-                  {plugin.events.length ? plugin.events.join(', ') : '-'}
-                </td>
-                <td className="px-4 py-2">
-                  {plugin.enabled ? '활성' : '비활성'}
-                </td>
-                <td className="px-4 py-2">
-                  <div className="flex justify-end gap-2">
-                    <Button variant="ghost" onClick={() => toggle(plugin)}>
-                      {plugin.enabled ? '비활성' : '활성'}
-                    </Button>
-                    <Button variant="ghost" onClick={() => rotate(plugin)}>
-                      토큰 회전
-                    </Button>
-                    <Button variant="danger" onClick={() => remove(plugin)}>
-                      삭제
-                    </Button>
-                  </div>
-                </td>
-              </tr>
+              <Fragment key={plugin.id}>
+                <tr className="border-t border-zinc-100 dark:border-zinc-800">
+                  <td className="px-4 py-2">
+                    <div className="font-medium">{plugin.name}</div>
+                    {plugin.description && (
+                      <div className="text-xs text-zinc-500">
+                        {plugin.description}
+                      </div>
+                    )}
+                  </td>
+                  <td className="max-w-xs truncate px-4 py-2 text-zinc-500">
+                    {plugin.webhookUrl ?? '-'}
+                  </td>
+                  <td className="px-4 py-2 text-xs text-zinc-500">
+                    {plugin.events.length ? plugin.events.join(', ') : '-'}
+                  </td>
+                  <td className="px-4 py-2">
+                    {plugin.enabled ? '활성' : '비활성'}
+                  </td>
+                  <td className="px-4 py-2">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        onClick={() =>
+                          setOpenLogs(openLogs === plugin.id ? null : plugin.id)
+                        }
+                      >
+                        로그
+                      </Button>
+                      <Button variant="ghost" onClick={() => toggle(plugin)}>
+                        {plugin.enabled ? '비활성' : '활성'}
+                      </Button>
+                      <Button variant="ghost" onClick={() => rotate(plugin)}>
+                        토큰 회전
+                      </Button>
+                      <Button variant="danger" onClick={() => remove(plugin)}>
+                        삭제
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+                {openLogs === plugin.id && (
+                  <tr className="border-t border-zinc-100 dark:border-zinc-800">
+                    <td colSpan={5} className="px-4 py-3">
+                      <Deliveries pluginId={plugin.id} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
             {plugins.length === 0 && (
               <tr>
