@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { ToastProvider } from '@/components/toast/toast-provider';
 import { Button } from '@/components/ui/button';
 import { requireUser } from '@/lib/auth/current-user';
@@ -42,11 +43,14 @@ export default async function PanelLayout({
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
             <span className="text-sm text-zinc-500">{user.username}</span>
-            <form action={logoutAction}>
-              <Button variant="ghost" type="submit">
-                로그아웃
-              </Button>
-            </form>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <form action={logoutAction}>
+                <Button variant="ghost" type="submit">
+                  로그아웃
+                </Button>
+              </form>
+            </div>
           </header>
           <main className="min-w-0 flex-1 p-6">{children}</main>
         </div>
