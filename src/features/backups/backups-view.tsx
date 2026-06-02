@@ -52,9 +52,10 @@ export function BackupsView({ identifier }: { identifier: string }) {
   }
 
   async function restore(backup: BackupEntry) {
-    if (!confirm(`${backup.name} 복원? 기존 파일을 덮어쓸 수 있습니다.`)) {
-      return;
-    }
+    const typed = window.prompt(
+      `복원하면 현재 서버 파일을 덮어쓸 수 있습니다.\n계속하려면 백업 이름을 입력하세요: ${backup.name}`,
+    );
+    if (typed !== backup.name) return;
 
     const res = await restoreBackupAction(identifier, backup.uuid, false);
     alert(res.ok ? '복원을 시작했습니다.' : (res.detail ?? '복원 실패'));
