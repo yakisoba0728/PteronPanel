@@ -5,6 +5,7 @@ import { z, type ZodError, type ZodType } from 'zod';
 import { requireUser } from '@/lib/auth/current-user';
 import type { ScopeUser } from '@/lib/authz/access';
 import { requireServerPermission, ServerAccessDeniedError } from '@/lib/authz/guard';
+import { emitEvent } from '@/lib/plugins/events';
 import * as ptero from '@/lib/ptero/client';
 import { PteroApiError, friendlyMessage } from '@/lib/ptero/errors';
 import { asIdentifier, type BackupEntry } from '@/lib/ptero/types';
@@ -104,6 +105,11 @@ export async function createBackupAction(
       target: id,
       metadata: { name: input.name },
     });
+    void emitEvent('backup.create', {
+      serverIdentifier: id,
+      actorUserId: user.id,
+      data: { name: input.name ?? null },
+    });
     return { ok: true, backup };
   } catch (err) {
     return toFail(err);
@@ -138,6 +144,11 @@ export async function restoreBackupAction(
       userId: user.id,
       target: id,
       metadata: { uuid: input.uuid, truncate: input.truncate },
+    });
+    void emitEvent('backup.restore', {
+      serverIdentifier: id,
+      actorUserId: user.id,
+      data: { uuid: input.uuid, truncate: input.truncate },
     });
     return { ok: true };
   } catch (err) {

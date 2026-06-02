@@ -5,6 +5,7 @@ import { z, type ZodError, type ZodType } from 'zod';
 import { requireUser } from '@/lib/auth/current-user';
 import type { ScopeUser } from '@/lib/authz/access';
 import { requireServerPermission, ServerAccessDeniedError } from '@/lib/authz/guard';
+import { emitEvent } from '@/lib/plugins/events';
 import * as ptero from '@/lib/ptero/client';
 import { PteroApiError, friendlyMessage } from '@/lib/ptero/errors';
 import { asIdentifier, type FileEntry } from '@/lib/ptero/types';
@@ -199,6 +200,11 @@ export async function writeFileAction(
       target: id,
       metadata: { file: input.file },
     });
+    void emitEvent('file.write', {
+      serverIdentifier: id,
+      actorUserId: user.id,
+      data: { file: input.file },
+    });
     return { ok: true };
   } catch (err) {
     return toFail(err);
@@ -219,6 +225,11 @@ export async function deleteFilesAction(
       userId: user.id,
       target: id,
       metadata: { root: input.root, files: input.files },
+    });
+    void emitEvent('file.delete', {
+      serverIdentifier: id,
+      actorUserId: user.id,
+      data: { root: input.root, files: input.files },
     });
     return { ok: true };
   } catch (err) {

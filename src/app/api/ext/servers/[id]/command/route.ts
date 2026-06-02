@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { audit } from '@/lib/audit';
 import { requireServerPermission } from '@/lib/authz/guard';
 import { sendCommand } from '@/lib/ptero/client';
+import { emitEvent } from '@/lib/plugins/events';
 import { authenticatePlugin } from '@/lib/plugins/auth';
 import { extError } from '@/lib/plugins/respond';
 import { pluginServer } from '@/lib/plugins/scope';
@@ -28,6 +29,11 @@ export async function POST(
       userId: ctx.owner.id,
       target: sid,
       metadata: { pluginId: ctx.pluginId },
+    });
+    void emitEvent('server.command', {
+      serverIdentifier: sid,
+      actorUserId: ctx.owner.id,
+      data: { pluginId: ctx.pluginId },
     });
 
     return new NextResponse(null, { status: 204 });
