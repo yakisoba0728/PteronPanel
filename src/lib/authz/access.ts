@@ -1,7 +1,12 @@
 import { TtlCache } from '@/lib/cache';
+import { prisma } from '@/lib/db';
 import { getOwnedServers } from '@/lib/ptero/application';
 import { listServers } from '@/lib/ptero/client';
-import type { AccessibleServer } from '@/lib/ptero/types';
+import {
+  asIdentifier,
+  asUuid,
+  type AccessibleServer,
+} from '@/lib/ptero/types';
 
 export interface ScopeUser {
   id: string;
@@ -21,7 +26,40 @@ export async function resolveAccessibleServers(user: ScopeUser): Promise<Accessi
   if (user.role === 'ADMIN') {
     servers = await listServers('admin-all');
   } else if (user.pteroUserId != null) {
-    servers = await getOwnedServers(user.pteroUserId);
+    const owned = await getOwnedServers(user.pteroUserId);
+    const ownedIds = new Set(owned.map((server) => String(server.identifier)));
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { pteroUuid: true },
+    });
+
+    let subuser: AccessibleServer[] = [];
+    if (dbUser?.pteroUuid) {
+      const rows = await prisma.serverAccess.findMany({
+        where: { pteroUuid: dbUser.pteroUuid },
+      });
+      subuser = rows
+        .filter((row) => !ownedIds.has(row.serverIdentifier))
+        .flatMap((row) => {
+          try {
+            return [
+              {
+                identifier: asIdentifier(row.serverIdentifier),
+                uuid: asUuid(row.serverUuid),
+                name: row.serverName,
+              },
+            ];
+          } catch (error) {
+            console.warn(
+              `Skipping invalid ServerAccess row (identifier=${row.serverIdentifier}):`,
+              error,
+            );
+            return [];
+          }
+        });
+    }
+
+    servers = [...owned, ...subuser];
   } else {
     servers = [];
   }
