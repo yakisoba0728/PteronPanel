@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { registerServerTab, serverTabs } from './server-tabs';
 
 describe('server tab registry', () => {
-  it('ships overview and console built-ins', () => {
+  it('ships built-in server tabs', () => {
     const keys = serverTabs.map((tab) => tab.key);
-    expect(keys).toContain('overview');
-    expect(keys).toContain('console');
+    expect(keys).toEqual(
+      expect.arrayContaining(['overview', 'console', 'files', 'backups']),
+    );
   });
 
   it('builds hrefs from an identifier', () => {
