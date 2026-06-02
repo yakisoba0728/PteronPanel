@@ -1,0 +1,74 @@
+import { describe, it, expect } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { mswServer } from '@/test/msw/server';
+import { getOwnedServers, paginateAll } from './application';
+
+const BASE = 'https://panel.test/api/application';
+
+describe('application.getOwnedServers', () => {
+  it("maps a user's owned servers (include=servers) to AccessibleServer[]", async () => {
+    mswServer.use(
+      http.get(`${BASE}/users/7`, ({ request }) => {
+        expect(new URL(request.url).searchParams.get('include')).toBe('servers');
+        return HttpResponse.json({
+          object: 'user',
+          attributes: {
+            id: 7,
+            relationships: {
+              servers: {
+                object: 'list',
+                data: [
+                  {
+                    object: 'server',
+                    attributes: {
+                      id: 12,
+                      identifier: '1a2b3c4d',
+                      uuid: '1a2b3c4d-5e6f-7081-9234-567890abcdef',
+                      name: 'Alpha',
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        });
+      })
+    );
+
+    const servers = await getOwnedServers(7);
+
+    expect(servers).toHaveLength(1);
+    expect(servers[0]).toMatchObject({
+      identifier: '1a2b3c4d',
+      name: 'Alpha',
+      numericId: 12,
+    });
+  });
+});
+
+describe('paginateAll', () => {
+  it('iterates every page until total_pages', async () => {
+    let page = 0;
+    const fetchPage = async (p: number) => {
+      page = p;
+      return {
+        object: 'list' as const,
+        data: [{ object: 'x', attributes: { n: p } }],
+        meta: {
+          pagination: {
+            total: 2,
+            count: 1,
+            per_page: 1,
+            current_page: p,
+            total_pages: 2,
+          },
+        },
+      };
+    };
+
+    const all = await paginateAll(fetchPage);
+
+    expect(all.map((item) => item.attributes.n)).toEqual([1, 2]);
+    expect(page).toBe(2);
+  });
+});
