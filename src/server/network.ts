@@ -109,8 +109,13 @@ export async function setAllocationNoteAction(
   try {
     const input = validateInput(noteInputSchema, { identifier, allocId, notes });
     if ('ok' in input) return input;
-    const { id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier);
     await ptero.setAllocationNote(id, input.allocId, input.notes);
+    await auditAction('network.note', {
+      userId: user.id,
+      target: id,
+      metadata: { allocId: input.allocId },
+    });
     return { ok: true };
   } catch (err) {
     return toFail(err);
@@ -124,8 +129,13 @@ export async function setPrimaryAllocationAction(
   try {
     const input = validateInput(allocationInputSchema, { identifier, allocId });
     if ('ok' in input) return input;
-    const { id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier);
     await ptero.setPrimaryAllocation(id, input.allocId);
+    await auditAction('network.primary', {
+      userId: user.id,
+      target: id,
+      metadata: { allocId: input.allocId },
+    });
     return { ok: true };
   } catch (err) {
     return toFail(err);
