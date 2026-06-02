@@ -20,7 +20,10 @@ export async function syncServerAccessAction(): Promise<
     invalidateAccessCache();
     await audit('admin.scope.sync', {
       userId: user.id,
-      metadata: result,
+      metadata: {
+        servers: result.servers,
+        subuserLinks: result.subuserLinks,
+      },
     });
     return { ok: true, ...result };
   } catch (err) {

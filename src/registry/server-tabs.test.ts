@@ -15,6 +15,7 @@ describe('server tab registry', () => {
         'startup',
         'settings',
         'schedules',
+        'subusers',
         'activity',
       ]),
     );

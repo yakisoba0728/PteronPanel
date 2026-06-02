@@ -15,6 +15,7 @@ export const serverTabs: ServerTab[] = [
   { key: 'startup', label: 'Startup', href: (id) => `/servers/${id}/startup` },
   { key: 'settings', label: '설정', href: (id) => `/servers/${id}/settings` },
   { key: 'schedules', label: '스케줄', href: (id) => `/servers/${id}/schedules` },
+  { key: 'subusers', label: '서브유저', href: (id) => `/servers/${id}/subusers` },
   { key: 'activity', label: '활동', href: (id) => `/servers/${id}/activity` },
 ];
 
