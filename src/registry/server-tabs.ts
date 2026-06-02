@@ -10,6 +10,11 @@ export const serverTabs: ServerTab[] = [
   { key: 'console', label: '콘솔', href: (id) => `/servers/${id}/console` },
   { key: 'files', label: '파일', href: (id) => `/servers/${id}/files` },
   { key: 'backups', label: '백업', href: (id) => `/servers/${id}/backups` },
+  { key: 'databases', label: '데이터베이스', href: (id) => `/servers/${id}/databases` },
+  { key: 'network', label: '네트워크', href: (id) => `/servers/${id}/network` },
+  { key: 'startup', label: 'Startup', href: (id) => `/servers/${id}/startup` },
+  { key: 'settings', label: '설정', href: (id) => `/servers/${id}/settings` },
+  { key: 'activity', label: '활동', href: (id) => `/servers/${id}/activity` },
 ];
 
 export function registerServerTab(tab: ServerTab): void {

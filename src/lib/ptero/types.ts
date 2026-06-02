@@ -232,3 +232,40 @@ export interface UpdateServerStartupInput {
   environment: Record<string, string>;
   skip_scripts?: boolean;
 }
+
+export interface ServerDatabase {
+  id: string;
+  name: string;
+  username: string;
+  host: { address: string; port: number };
+  connections_from: string;
+  max_connections: number;
+  password?: string;
+}
+
+export interface ServerAllocation {
+  id: number;
+  ip: string;
+  ip_alias: string | null;
+  port: number;
+  notes: string | null;
+  is_default: boolean;
+}
+
+export interface StartupVariable {
+  name: string;
+  description: string;
+  env_variable: string;
+  default_value: string;
+  server_value: string;
+  is_editable: boolean;
+  rules: string;
+}
+
+export interface ActivityEntry {
+  id: string;
+  event: string;
+  ip: string | null;
+  description: string | null;
+  timestamp: string;
+}

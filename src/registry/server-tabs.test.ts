@@ -5,7 +5,17 @@ describe('server tab registry', () => {
   it('ships built-in server tabs', () => {
     const keys = serverTabs.map((tab) => tab.key);
     expect(keys).toEqual(
-      expect.arrayContaining(['overview', 'console', 'files', 'backups']),
+      expect.arrayContaining([
+        'overview',
+        'console',
+        'files',
+        'backups',
+        'databases',
+        'network',
+        'startup',
+        'settings',
+        'activity',
+      ]),
     );
   });
 

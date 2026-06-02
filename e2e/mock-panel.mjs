@@ -335,6 +335,92 @@ const server = createServer(async (req, res) => {
     );
   }
 
+  if (pathname === '/api/client/servers/1a2b3c4d/databases') {
+    return json(res, {
+      object: 'list',
+      data: [
+        {
+          object: 'server_database',
+          attributes: {
+            id: 'H1',
+            name: 's1_default',
+            username: 'u',
+            host: { address: '10.0.0.1', port: 3306 },
+            connections_from: '%',
+            max_connections: 0,
+          },
+        },
+      ],
+    });
+  }
+
+  if (pathname === '/api/client/servers/1a2b3c4d/network/allocations') {
+    return json(res, {
+      object: 'list',
+      data: [
+        {
+          object: 'allocation',
+          attributes: {
+            id: 1,
+            ip: '0.0.0.0',
+            ip_alias: null,
+            port: 25565,
+            notes: null,
+            is_default: true,
+          },
+        },
+      ],
+    });
+  }
+
+  if (pathname === '/api/client/servers/1a2b3c4d/startup') {
+    return json(res, {
+      object: 'list',
+      data: [
+        {
+          object: 'egg_variable',
+          attributes: {
+            name: 'Version',
+            description: '',
+            env_variable: 'MC_VERSION',
+            default_value: 'latest',
+            server_value: '1.20',
+            is_editable: true,
+            rules: 'required|string',
+          },
+        },
+      ],
+      meta: { startup_command: 'java' },
+    });
+  }
+
+  if (pathname === '/api/client/servers/1a2b3c4d/activity') {
+    return json(res, {
+      object: 'list',
+      data: [
+        {
+          object: 'activity_log',
+          attributes: {
+            id: 'a1',
+            event: 'server:console.command',
+            ip: '1.2.3.4',
+            description: null,
+            timestamp: '2026-01-01T00:00:00Z',
+          },
+        },
+      ],
+      meta: {
+        pagination: {
+          total: 1,
+          count: 1,
+          per_page: 50,
+          current_page: 1,
+          total_pages: 1,
+        },
+      },
+    });
+  }
+
   if (pathname === '/ws-events') {
     return json(res, { events: wsEvents });
   }

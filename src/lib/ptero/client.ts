@@ -4,13 +4,17 @@ import {
   asNumericId,
   asUuid,
   type AccessibleServer,
+  type ActivityEntry,
   type BackupEntry,
   type FileEntry,
   type PowerSignal,
   type PteroItem,
   type PteroList,
+  type ServerAllocation,
+  type ServerDatabase,
   type ServerIdentifier,
   type ServerResources,
+  type StartupVariable,
   type WebsocketCredentials,
 } from './types';
 
@@ -33,6 +37,10 @@ function toAccessible(attrs: ClientServerAttrs): AccessibleServer {
     name: attrs.name,
     node: attrs.node,
   };
+}
+
+function pathSegment(value: string | number): string {
+  return encodeURIComponent(String(value)).replace(/\./g, '%252E');
 }
 
 export async function listServers(
@@ -324,7 +332,7 @@ export async function getBackup(
 ): Promise<BackupEntry> {
   const response = await pteroFetch<{ attributes: BackupEntry }>(
     'client',
-    `/servers/${id}/backups/${backupUuid}`,
+    `/servers/${id}/backups/${pathSegment(backupUuid)}`,
   );
 
   return response.attributes;
@@ -356,7 +364,7 @@ export async function getBackupDownloadUrl(
 ): Promise<string> {
   const response = await pteroFetch<SignedUrl>(
     'client',
-    `/servers/${id}/backups/${backupUuid}/download`,
+    `/servers/${id}/backups/${pathSegment(backupUuid)}/download`,
   );
 
   return response.attributes.url;
@@ -368,7 +376,7 @@ export async function toggleBackupLock(
 ): Promise<BackupEntry> {
   const response = await pteroFetch<{ attributes: BackupEntry }>(
     'client',
-    `/servers/${id}/backups/${backupUuid}/lock`,
+    `/servers/${id}/backups/${pathSegment(backupUuid)}/lock`,
     { method: 'POST' },
   );
 
@@ -380,17 +388,224 @@ export async function restoreBackup(
   backupUuid: string,
   truncate = false,
 ): Promise<void> {
-  await pteroFetch('client', `/servers/${id}/backups/${backupUuid}/restore`, {
-    method: 'POST',
-    body: { truncate },
-  });
+  await pteroFetch(
+    'client',
+    `/servers/${id}/backups/${pathSegment(backupUuid)}/restore`,
+    {
+      method: 'POST',
+      body: { truncate },
+    },
+  );
 }
 
 export async function deleteBackup(
   id: ServerIdentifier,
   backupUuid: string,
 ): Promise<void> {
-  await pteroFetch('client', `/servers/${id}/backups/${backupUuid}`, {
-    method: 'DELETE',
+  await pteroFetch(
+    'client',
+    `/servers/${id}/backups/${pathSegment(backupUuid)}`,
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
+interface DbAttrs {
+  id: string;
+  name: string;
+  username: string;
+  host: { address: string; port: number };
+  connections_from: string;
+  max_connections: number;
+  relationships?: {
+    password?: { attributes: { password: string } };
+  };
+}
+
+function mapDb(attrs: DbAttrs): ServerDatabase {
+  return {
+    id: attrs.id,
+    name: attrs.name,
+    username: attrs.username,
+    host: attrs.host,
+    connections_from: attrs.connections_from,
+    max_connections: attrs.max_connections,
+    password: attrs.relationships?.password?.attributes.password,
+  };
+}
+
+export async function listDatabases(
+  id: ServerIdentifier,
+): Promise<ServerDatabase[]> {
+  const response = await pteroFetch<PteroList<DbAttrs>>(
+    'client',
+    `/servers/${id}/databases`,
+    { query: { include: 'password' } },
+  );
+
+  return response.data.map((item) => mapDb(item.attributes));
+}
+
+export async function createDatabase(
+  id: ServerIdentifier,
+  input: { database: string; remote: string },
+): Promise<ServerDatabase> {
+  const response = await pteroFetch<PteroItem<DbAttrs>>(
+    'client',
+    `/servers/${id}/databases`,
+    { method: 'POST', body: input },
+  );
+
+  return mapDb(response.attributes);
+}
+
+export async function rotateDatabasePassword(
+  id: ServerIdentifier,
+  dbId: string,
+): Promise<ServerDatabase> {
+  const response = await pteroFetch<PteroItem<DbAttrs>>(
+    'client',
+    `/servers/${id}/databases/${pathSegment(dbId)}/rotate-password`,
+    { method: 'POST' },
+  );
+
+  return mapDb(response.attributes);
+}
+
+export async function deleteDatabase(
+  id: ServerIdentifier,
+  dbId: string,
+): Promise<void> {
+  await pteroFetch(
+    'client',
+    `/servers/${id}/databases/${pathSegment(dbId)}`,
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
+export async function listAllocations(
+  id: ServerIdentifier,
+): Promise<ServerAllocation[]> {
+  const response = await pteroFetch<PteroList<ServerAllocation>>(
+    'client',
+    `/servers/${id}/network/allocations`,
+  );
+
+  return response.data.map((item) => item.attributes);
+}
+
+export async function assignAllocation(
+  id: ServerIdentifier,
+): Promise<ServerAllocation> {
+  const response = await pteroFetch<PteroItem<ServerAllocation>>(
+    'client',
+    `/servers/${id}/network/allocations`,
+    { method: 'POST' },
+  );
+
+  return response.attributes;
+}
+
+export async function setAllocationNote(
+  id: ServerIdentifier,
+  allocId: number,
+  notes: string,
+): Promise<ServerAllocation> {
+  const response = await pteroFetch<PteroItem<ServerAllocation>>(
+    'client',
+    `/servers/${id}/network/allocations/${pathSegment(allocId)}`,
+    { method: 'POST', body: { notes } },
+  );
+
+  return response.attributes;
+}
+
+export async function setPrimaryAllocation(
+  id: ServerIdentifier,
+  allocId: number,
+): Promise<ServerAllocation> {
+  const response = await pteroFetch<PteroItem<ServerAllocation>>(
+    'client',
+    `/servers/${id}/network/allocations/${pathSegment(allocId)}/primary`,
+    { method: 'POST' },
+  );
+
+  return response.attributes;
+}
+
+export async function deleteAllocation(
+  id: ServerIdentifier,
+  allocId: number,
+): Promise<void> {
+  await pteroFetch(
+    'client',
+    `/servers/${id}/network/allocations/${pathSegment(allocId)}`,
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
+export async function getStartupVariables(
+  id: ServerIdentifier,
+): Promise<StartupVariable[]> {
+  const response = await pteroFetch<PteroList<StartupVariable>>(
+    'client',
+    `/servers/${id}/startup`,
+  );
+
+  return response.data.map((item) => item.attributes);
+}
+
+export async function updateStartupVariable(
+  id: ServerIdentifier,
+  key: string,
+  value: string,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/startup/variable`, {
+    method: 'PUT',
+    body: { key, value },
   });
+}
+
+export async function renameServer(
+  id: ServerIdentifier,
+  name: string,
+  description?: string,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/settings/rename`, {
+    method: 'POST',
+    body: { name, description },
+  });
+}
+
+export async function reinstallServer(id: ServerIdentifier): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/settings/reinstall`, {
+    method: 'POST',
+  });
+}
+
+export async function setDockerImage(
+  id: ServerIdentifier,
+  dockerImage: string,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/settings/docker-image`, {
+    method: 'PUT',
+    body: { docker_image: dockerImage },
+  });
+}
+
+export async function listActivity(
+  id: ServerIdentifier,
+): Promise<ActivityEntry[]> {
+  const response = await pteroFetch<PteroList<ActivityEntry>>(
+    'client',
+    `/servers/${id}/activity`,
+    { query: { per_page: 50 } },
+  );
+
+  return response.data.map((item) => item.attributes);
 }
