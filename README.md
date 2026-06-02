@@ -95,7 +95,46 @@ Authorization: Bearer ptex_...
 
 모든 `/api/ext` 요청은 토큰을 등록한 소유자의 현재 접근 스코프로 다시 해석합니다. 소유자가 접근할 수 없는 서버는 404로 숨기고, 비활성화된 플러그인 토큰은 401로 거부합니다. 플러그인에는 Pterodactyl 마스터 키나 `SESSION_SECRET` 원문이 전달되지 않습니다.
 
-Webhook 이벤트와 iframe UI 탭은 Phase 6b/6c에서 확장됩니다. 6a에서는 등록 입력과 시크릿 저장 기반, 그리고 owner-scoped API 호출 기반을 제공합니다.
+### 플러그인 webhook 수신
+
+Webhook URL을 등록하고 이벤트를 구독하면 패널에서 발생한 동작이 플러그인 서비스로 `POST`됩니다. 현재 이벤트 타입은 `server.power`, `server.command`, `backup.create`, `backup.restore`, `file.write`, `file.delete`입니다.
+
+요청 헤더:
+
+- `X-Pteron-Event`: 이벤트 타입
+- `X-Pteron-Timestamp`: Unix epoch seconds
+- `X-Pteron-Signature`: `sha256=HMAC_SHA256(webhookSecret, timestamp + "." + rawBody)`
+
+수신 서비스는 raw request body를 문자열 그대로 보존해 서명을 검증해야 합니다. timestamp는 서비스 기준으로 짧은 허용오차(예: 5분)를 두고 과거/미래 요청을 거부하세요.
+
+```ts
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
+function verifyPteronWebhook(secret: string, timestamp: string, body: string, signature: string) {
+  const expected =
+    'sha256=' +
+    createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex');
+
+  return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+}
+```
+
+Payload 스키마:
+
+```json
+{
+  "id": "webhook_delivery_id",
+  "event": "server.power",
+  "server": "1a2b3c4d",
+  "actor": "user_id_or_null",
+  "timestamp": "2026-06-02T00:00:00.000Z",
+  "data": {}
+}
+```
+
+디스패처는 활성화된 플러그인 중 webhook URL이 있고 해당 이벤트를 구독했으며, 플러그인 소유자가 대상 서버에 접근할 수 있는 경우에만 전송합니다. 전송 결과는 `/account/plugins`의 플러그인별 로그에서 확인하고 실패 건은 수동 재시도할 수 있습니다.
+
+iframe UI 탭은 Phase 6c에서 확장됩니다.
 
 ## 개발
 
