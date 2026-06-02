@@ -33,7 +33,14 @@ export function friendlyMessage(err: PteroApiError): string {
     case 413:
       return '파일이 너무 큽니다.';
     default:
-      return err.primary?.detail ?? '오류가 발생했습니다.';
+      // Avoid leaking raw upstream detail (esp. 5xx) to the browser. Log it
+      // server-side and return a generic message instead.
+      if (err.primary?.detail) {
+        console.error(
+          `Pterodactyl API error (HTTP ${err.httpStatus}): ${err.primary.detail}`,
+        );
+      }
+      return '오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
   }
 }
 
