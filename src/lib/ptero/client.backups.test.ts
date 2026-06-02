@@ -17,6 +17,48 @@ describe('client backups', () => {
     expect(out[0]).toMatchObject({ uuid: 'b-1', name: 'daily', is_successful: true });
   });
 
+  it('listBackups aggregates all paginated pages', async () => {
+    const seenPages: number[] = [];
+    mswServer.use(
+      http.get(`${BASE}/servers/1a2b3c4d/backups`, ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+        seenPages.push(page);
+        return HttpResponse.json({
+          object: 'list',
+          data: [
+            {
+              object: 'backup',
+              attributes: {
+                uuid: `b-${page}`,
+                name: `daily-${page}`,
+                bytes: page,
+                checksum: null,
+                is_locked: false,
+                is_successful: true,
+                created_at: '',
+                completed_at: '',
+              },
+            },
+          ],
+          meta: {
+            pagination: {
+              total: 2,
+              count: 1,
+              per_page: 1,
+              current_page: page,
+              total_pages: 2,
+            },
+          },
+        });
+      }),
+    );
+
+    const out = await listBackups(id);
+
+    expect(seenPages).toEqual([1, 2]);
+    expect(out.map((backup) => backup.uuid)).toEqual(['b-1', 'b-2']);
+  });
+
   it('createBackup posts {name}', async () => {
     let body: unknown;
     mswServer.use(

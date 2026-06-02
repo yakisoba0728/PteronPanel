@@ -1,6 +1,7 @@
 'use server';
 
 import type { Prisma, User } from '@prisma/client';
+import { z, type ZodError, type ZodType } from 'zod';
 import { requireUser } from '@/lib/auth/current-user';
 import type { ScopeUser } from '@/lib/authz/access';
 import { requireServerAccess, ServerAccessDeniedError } from '@/lib/authz/guard';
@@ -17,13 +18,45 @@ function scope(user: User): ScopeUser {
 }
 
 type Fail = { ok: false; error: 'not_found' | 'failed'; detail?: string };
-type Ok<T> = { ok: true } & T;
+type Ok<T extends object = object> = { ok: true } & T;
+
+const noNul = (value: string) => !value.includes('\0');
+const identifierSchema = z.string().length(8).refine(noNul, 'must not contain NUL');
+const backupUuidSchema = z.string().min(1).refine(noNul, 'must not contain NUL');
+const backupNameSchema = z.string().min(1).refine(noNul, 'must not contain NUL');
+const identifierInputSchema = z.object({ identifier: identifierSchema });
+const createInputSchema = z.object({
+  identifier: identifierSchema,
+  name: backupNameSchema.optional(),
+});
+const uuidInputSchema = z.object({
+  identifier: identifierSchema,
+  uuid: backupUuidSchema,
+});
+const restoreInputSchema = uuidInputSchema.extend({ truncate: z.boolean() });
 
 async function guard(identifier: string) {
   const user = await requireUser();
   const id = asIdentifier(identifier);
   await requireServerAccess(scope(user), id);
   return { user, id };
+}
+
+function validationDetail(error: ZodError): string {
+  return error.issues
+    .map((issue) => {
+      const path = issue.path.join('.');
+      return path ? `${path}: ${issue.message}` : issue.message;
+    })
+    .join('; ');
+}
+
+function validateInput<T>(schema: ZodType<T>, value: unknown): T | Fail {
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) {
+    return { ok: false, error: 'failed', detail: validationDetail(parsed.error) };
+  }
+  return parsed.data;
 }
 
 function toFail(err: unknown): Fail {
@@ -48,7 +81,9 @@ export async function listBackupsAction(
   identifier: string,
 ): Promise<Ok<{ backups: BackupEntry[] }> | Fail> {
   try {
-    const { id } = await guard(identifier);
+    const input = validateInput(identifierInputSchema, { identifier });
+    if ('ok' in input) return input;
+    const { id } = await guard(input.identifier);
     return { ok: true, backups: await ptero.listBackups(id) };
   } catch (err) {
     return toFail(err);
@@ -60,12 +95,14 @@ export async function createBackupAction(
   name?: string,
 ): Promise<Ok<{ backup: BackupEntry }> | Fail> {
   try {
-    const { user, id } = await guard(identifier);
-    const backup = await ptero.createBackup(id, { name });
+    const input = validateInput(createInputSchema, { identifier, name });
+    if ('ok' in input) return input;
+    const { user, id } = await guard(input.identifier);
+    const backup = await ptero.createBackup(id, { name: input.name });
     await auditAction('backup.create', {
       userId: user.id,
       target: id,
-      metadata: { name },
+      metadata: { name: input.name },
     });
     return { ok: true, backup };
   } catch (err) {
@@ -78,8 +115,10 @@ export async function backupDownloadUrlAction(
   uuid: string,
 ): Promise<Ok<{ url: string }> | Fail> {
   try {
-    const { id } = await guard(identifier);
-    return { ok: true, url: await ptero.getBackupDownloadUrl(id, uuid) };
+    const input = validateInput(uuidInputSchema, { identifier, uuid });
+    if ('ok' in input) return input;
+    const { id } = await guard(input.identifier);
+    return { ok: true, url: await ptero.getBackupDownloadUrl(id, input.uuid) };
   } catch (err) {
     return toFail(err);
   }
@@ -89,14 +128,16 @@ export async function restoreBackupAction(
   identifier: string,
   uuid: string,
   truncate: boolean,
-): Promise<Ok<{}> | Fail> {
+): Promise<Ok | Fail> {
   try {
-    const { user, id } = await guard(identifier);
-    await ptero.restoreBackup(id, uuid, truncate);
+    const input = validateInput(restoreInputSchema, { identifier, uuid, truncate });
+    if ('ok' in input) return input;
+    const { user, id } = await guard(input.identifier);
+    await ptero.restoreBackup(id, input.uuid, input.truncate);
     await auditAction('backup.restore', {
       userId: user.id,
       target: id,
-      metadata: { uuid, truncate },
+      metadata: { uuid: input.uuid, truncate: input.truncate },
     });
     return { ok: true };
   } catch (err) {
@@ -109,8 +150,16 @@ export async function toggleBackupLockAction(
   uuid: string,
 ): Promise<Ok<{ backup: BackupEntry }> | Fail> {
   try {
-    const { id } = await guard(identifier);
-    return { ok: true, backup: await ptero.toggleBackupLock(id, uuid) };
+    const input = validateInput(uuidInputSchema, { identifier, uuid });
+    if ('ok' in input) return input;
+    const { user, id } = await guard(input.identifier);
+    const backup = await ptero.toggleBackupLock(id, input.uuid);
+    await auditAction('backup.lock', {
+      userId: user.id,
+      target: id,
+      metadata: { uuid: input.uuid, locked: backup.is_locked },
+    });
+    return { ok: true, backup };
   } catch (err) {
     return toFail(err);
   }
@@ -119,14 +168,16 @@ export async function toggleBackupLockAction(
 export async function deleteBackupAction(
   identifier: string,
   uuid: string,
-): Promise<Ok<{}> | Fail> {
+): Promise<Ok | Fail> {
   try {
-    const { user, id } = await guard(identifier);
-    await ptero.deleteBackup(id, uuid);
+    const input = validateInput(uuidInputSchema, { identifier, uuid });
+    if ('ok' in input) return input;
+    const { user, id } = await guard(input.identifier);
+    await ptero.deleteBackup(id, input.uuid);
     await auditAction('backup.delete', {
       userId: user.id,
       target: id,
-      metadata: { uuid },
+      metadata: { uuid: input.uuid },
     });
     return { ok: true };
   } catch (err) {

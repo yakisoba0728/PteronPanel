@@ -298,13 +298,24 @@ export async function pullRemoteFile(
 export async function listBackups(
   id: ServerIdentifier,
 ): Promise<BackupEntry[]> {
-  const response = await pteroFetch<PteroList<BackupEntry>>(
+  const first = await pteroFetch<PteroList<BackupEntry>>(
     'client',
     `/servers/${id}/backups`,
-    { query: { per_page: 100 } },
+    { query: { per_page: 100, page: 1 } },
   );
+  const data = [...first.data];
+  const totalPages = first.meta.pagination.total_pages;
 
-  return response.data.map((item) => item.attributes);
+  for (let page = 2; page <= totalPages; page += 1) {
+    const next = await pteroFetch<PteroList<BackupEntry>>(
+      'client',
+      `/servers/${id}/backups`,
+      { query: { per_page: 100, page } },
+    );
+    data.push(...next.data);
+  }
+
+  return data.map((item) => item.attributes);
 }
 
 export async function createBackup(

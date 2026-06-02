@@ -47,7 +47,7 @@ export function BackupsView({ identifier }: { identifier: string }) {
 
   async function download(backup: BackupEntry) {
     const res = await backupDownloadUrlAction(identifier, backup.uuid);
-    if (res.ok) window.open(res.url, '_blank');
+    if (res.ok) window.open(res.url, '_blank', 'noopener,noreferrer');
     else alert(res.detail ?? '다운로드 실패');
   }
 

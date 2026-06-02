@@ -7,11 +7,17 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import type { FileEntry } from '@/lib/ptero/types';
 import {
+  chmodAction,
+  compressAction,
+  copyAction,
   createFolderAction,
+  decompressAction,
   deleteFilesAction,
   getDownloadUrlAction,
   getUploadUrlAction,
   listFilesAction,
+  pullAction,
+  renameAction,
 } from '@/server/files';
 
 function joinPath(dir: string, name: string): string {
@@ -60,6 +66,45 @@ export function FileBrowser({ identifier }: { identifier: string }) {
     else alert(res.detail ?? '삭제 실패');
   }
 
+  async function onRename(name: string) {
+    const nextName = prompt('새 이름', name);
+    if (!nextName || nextName === name) return;
+    const res = await renameAction(identifier, dir, [{ from: name, to: nextName }]);
+    if (res.ok) load(dir);
+    else alert(res.detail ?? '이름 변경 실패');
+  }
+
+  async function onCopy(name: string) {
+    const res = await copyAction(identifier, joinPath(dir, name));
+    if (res.ok) load(dir);
+    else alert(res.detail ?? '복사 실패');
+  }
+
+  async function onCompress(name: string) {
+    const res = await compressAction(identifier, dir, [name]);
+    if (res.ok) {
+      alert(`압축 생성: ${res.archive.name}`);
+      load(dir);
+    } else {
+      alert(res.detail ?? '압축 실패');
+    }
+  }
+
+  async function onDecompress(name: string) {
+    if (!confirm(`${name} 압축을 해제할까요?`)) return;
+    const res = await decompressAction(identifier, dir, name);
+    if (res.ok) load(dir);
+    else alert(res.detail ?? '압축 해제 실패');
+  }
+
+  async function onChmod(name: string, currentMode: string) {
+    const mode = prompt('권한 모드', currentMode || '0644');
+    if (!mode) return;
+    const res = await chmodAction(identifier, dir, [{ file: name, mode }]);
+    if (res.ok) load(dir);
+    else alert(res.detail ?? '권한 변경 실패');
+  }
+
   async function onNewFolder() {
     const name = prompt('새 폴더 이름');
     if (!name) return;
@@ -68,9 +113,22 @@ export function FileBrowser({ identifier }: { identifier: string }) {
     else alert(res.detail ?? '폴더 생성 실패');
   }
 
+  async function onPull() {
+    const url = prompt('원격 파일 URL');
+    if (!url) return;
+    const filename = prompt('저장 파일 이름(선택)') ?? '';
+    const res = await pullAction(identifier, {
+      url,
+      directory: dir,
+      filename: filename.trim() || undefined,
+    });
+    if (res.ok) load(dir);
+    else alert(res.detail ?? '원격 풀 실패');
+  }
+
   async function onDownload(name: string) {
     const res = await getDownloadUrlAction(identifier, joinPath(dir, name));
-    if (res.ok) window.open(res.url, '_blank');
+    if (res.ok) window.open(res.url, '_blank', 'noopener,noreferrer');
     else alert(res.detail ?? '다운로드 URL 실패');
   }
 
@@ -86,7 +144,14 @@ export function FileBrowser({ identifier }: { identifier: string }) {
 
     const form = new FormData();
     form.append('files', file);
-    await fetch(uploadUrl(res.url, dir), { method: 'POST', body: form });
+    const uploadRes = await fetch(uploadUrl(res.url, dir), {
+      method: 'POST',
+      body: form,
+    });
+    if (!uploadRes.ok) {
+      alert('업로드 실패');
+      return;
+    }
     e.target.value = '';
     load(dir);
   }
@@ -111,6 +176,9 @@ export function FileBrowser({ identifier }: { identifier: string }) {
           ))}
         </div>
         <div className="flex gap-2">
+          <Button type="button" variant="secondary" onClick={onPull}>
+            원격 풀
+          </Button>
           <Button type="button" variant="secondary" onClick={onNewFolder}>
             새 폴더
           </Button>
@@ -168,16 +236,53 @@ export function FileBrowser({ identifier }: { identifier: string }) {
                   {entry.is_file ? `${entry.size} B` : ''}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-wrap justify-end gap-2">
                     {entry.is_file && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => onDownload(entry.name)}
-                      >
-                        다운로드
-                      </Button>
+                      <>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => onDownload(entry.name)}
+                        >
+                          다운로드
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => onCopy(entry.name)}
+                        >
+                          복사
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => onDecompress(entry.name)}
+                        >
+                          해제
+                        </Button>
+                      </>
                     )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => onRename(entry.name)}
+                    >
+                      이름변경
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => onCompress(entry.name)}
+                    >
+                      압축
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => onChmod(entry.name, entry.mode_bits)}
+                    >
+                      권한
+                    </Button>
                     <Button
                       type="button"
                       variant="ghost"
