@@ -4,6 +4,7 @@ import {
   asNumericId,
   asUuid,
   type AccessibleServer,
+  type ActivityEntry,
   type BackupEntry,
   type FileEntry,
   type PowerSignal,
@@ -13,6 +14,7 @@ import {
   type ServerDatabase,
   type ServerIdentifier,
   type ServerResources,
+  type StartupVariable,
   type WebsocketCredentials,
 } from './types';
 
@@ -525,4 +527,65 @@ export async function deleteAllocation(
   await pteroFetch('client', `/servers/${id}/network/allocations/${allocId}`, {
     method: 'DELETE',
   });
+}
+
+export async function getStartupVariables(
+  id: ServerIdentifier,
+): Promise<StartupVariable[]> {
+  const response = await pteroFetch<PteroList<StartupVariable>>(
+    'client',
+    `/servers/${id}/startup`,
+  );
+
+  return response.data.map((item) => item.attributes);
+}
+
+export async function updateStartupVariable(
+  id: ServerIdentifier,
+  key: string,
+  value: string,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/startup/variable`, {
+    method: 'PUT',
+    body: { key, value },
+  });
+}
+
+export async function renameServer(
+  id: ServerIdentifier,
+  name: string,
+  description?: string,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/settings/rename`, {
+    method: 'POST',
+    body: { name, description },
+  });
+}
+
+export async function reinstallServer(id: ServerIdentifier): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/settings/reinstall`, {
+    method: 'POST',
+  });
+}
+
+export async function setDockerImage(
+  id: ServerIdentifier,
+  dockerImage: string,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/settings/docker-image`, {
+    method: 'PUT',
+    body: { docker_image: dockerImage },
+  });
+}
+
+export async function listActivity(
+  id: ServerIdentifier,
+): Promise<ActivityEntry[]> {
+  const response = await pteroFetch<PteroList<ActivityEntry>>(
+    'client',
+    `/servers/${id}/activity`,
+    { query: { per_page: 50 } },
+  );
+
+  return response.data.map((item) => item.attributes);
 }

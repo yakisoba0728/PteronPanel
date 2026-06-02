@@ -251,3 +251,21 @@ export interface ServerAllocation {
   notes: string | null;
   is_default: boolean;
 }
+
+export interface StartupVariable {
+  name: string;
+  description: string;
+  env_variable: string;
+  default_value: string;
+  server_value: string;
+  is_editable: boolean;
+  rules: string;
+}
+
+export interface ActivityEntry {
+  id: string;
+  event: string;
+  ip: string | null;
+  description: string | null;
+  timestamp: string;
+}
