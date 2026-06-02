@@ -24,6 +24,19 @@ export class PteroApiError extends Error {
   }
 }
 
+export function friendlyMessage(err: PteroApiError): string {
+  switch (err.httpStatus) {
+    case 429:
+      return '요청이 많습니다. 잠시 후 다시 시도해 주세요.';
+    case 409:
+      return err.primary?.detail ?? '현재 상태에서는 처리할 수 없습니다.';
+    case 413:
+      return '파일이 너무 큽니다.';
+    default:
+      return err.primary?.detail ?? '오류가 발생했습니다.';
+  }
+}
+
 export function parsePteroErrors(body: unknown): PteroErrorDetail[] {
   if (
     body &&

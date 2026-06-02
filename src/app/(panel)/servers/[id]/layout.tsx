@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireUser } from '@/lib/auth/current-user';
 import { requireServerAccess, ServerAccessDeniedError } from '@/lib/authz/guard';
+import { visibleTabs } from '@/lib/authz/visible-tabs';
 import { asIdentifier } from '@/lib/ptero/types';
 import { serverTabs } from '@/registry/server-tabs';
 
@@ -23,12 +24,14 @@ export default async function ServerLayout({
   }
 
   let name = id;
+  let tabs = serverTabs;
   try {
     const server = await requireServerAccess(
       { id: user.id, role: user.role, pteroUserId: user.pteroUserId },
       identifier,
     );
     name = server.name;
+    tabs = visibleTabs(server.accessKind ?? 'subuser', server.permissions ?? []);
   } catch (error) {
     if (error instanceof ServerAccessDeniedError) notFound();
     throw error;
@@ -38,7 +41,7 @@ export default async function ServerLayout({
     <div>
       <h1 className="text-xl font-semibold">{name}</h1>
       <nav className="mt-3 mb-5 flex gap-2 border-b border-zinc-200 dark:border-zinc-800">
-        {serverTabs.map((tab) => (
+        {tabs.map((tab) => (
           <Link
             key={tab.key}
             href={tab.href(id)}

@@ -5,7 +5,7 @@ import { requireUser } from '@/lib/auth/current-user';
 import { invalidateAccessCache } from '@/lib/authz/access';
 import { AdminRequiredError, assertAdmin } from '@/lib/authz/admin';
 import { syncServerAccess } from '@/lib/authz/sync';
-import { PteroApiError } from '@/lib/ptero/errors';
+import { PteroApiError, friendlyMessage } from '@/lib/ptero/errors';
 
 type Fail = { ok: false; error: 'forbidden' | 'failed'; detail?: string };
 type Ok<T extends object = object> = { ok: true } & T;
@@ -31,7 +31,7 @@ export async function syncServerAccessAction(): Promise<
       return { ok: false, error: 'forbidden' };
     }
 
-    const detail = err instanceof PteroApiError ? err.primary?.detail : undefined;
+    const detail = err instanceof PteroApiError ? friendlyMessage(err) : undefined;
     console.error('scope sync failed', err);
     return { ok: false, error: 'failed', detail };
   }

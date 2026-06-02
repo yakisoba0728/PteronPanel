@@ -6,7 +6,7 @@ import { assertAdmin, AdminRequiredError } from '@/lib/authz/admin';
 import * as app from '@/lib/ptero/application';
 import type { PteroServer, PteroNest, PteroEgg } from '@/lib/ptero/types';
 import { audit } from '@/lib/audit';
-import { PteroApiError } from '@/lib/ptero/errors';
+import { PteroApiError, friendlyMessage } from '@/lib/ptero/errors';
 
 type Fail = {
   ok: false;
@@ -34,7 +34,7 @@ function fail(err: unknown): Fail {
     };
   }
 
-  const detail = err instanceof PteroApiError ? err.primary?.detail : undefined;
+  const detail = err instanceof PteroApiError ? friendlyMessage(err) : undefined;
   console.error('admin server action failed', err);
   return { ok: false, error: 'failed', detail };
 }

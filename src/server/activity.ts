@@ -6,7 +6,7 @@ import { requireUser } from '@/lib/auth/current-user';
 import type { ScopeUser } from '@/lib/authz/access';
 import { requireServerPermission, ServerAccessDeniedError } from '@/lib/authz/guard';
 import * as ptero from '@/lib/ptero/client';
-import { PteroApiError } from '@/lib/ptero/errors';
+import { PteroApiError, friendlyMessage } from '@/lib/ptero/errors';
 import { asIdentifier, type ActivityEntry } from '@/lib/ptero/types';
 
 function scope(user: User): ScopeUser {
@@ -36,7 +36,7 @@ function toFail(err: unknown): Fail {
     return { ok: false, error: 'not_found' };
   }
 
-  const detail = err instanceof PteroApiError ? err.primary?.detail : undefined;
+  const detail = err instanceof PteroApiError ? friendlyMessage(err) : undefined;
   console.error('activity action failed', err);
   return { ok: false, error: 'failed', detail };
 }

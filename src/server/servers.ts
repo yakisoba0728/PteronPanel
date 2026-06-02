@@ -10,7 +10,7 @@ import {
 } from '@/lib/authz/guard';
 import { resolveAccessibleServers, type ScopeUser } from '@/lib/authz/access';
 import { getServer, powerServer } from '@/lib/ptero/client';
-import { PteroApiError } from '@/lib/ptero/errors';
+import { PteroApiError, friendlyMessage } from '@/lib/ptero/errors';
 import type { AccessibleServer } from '@/lib/ptero/types';
 import { asIdentifier, type PowerSignal } from '@/lib/ptero/types';
 
@@ -78,7 +78,7 @@ export async function powerServerAction(
     // requested power action (e.g. starting an already-running server). Surface
     // it as a distinct, non-error outcome instead of a generic failure.
     if (err instanceof PteroApiError && err.httpStatus === 409) {
-      return { ok: false, error: 'conflict', detail: err.primary?.detail };
+      return { ok: false, error: 'conflict', detail: friendlyMessage(err) };
     }
 
     console.error('powerServerAction failed', err);

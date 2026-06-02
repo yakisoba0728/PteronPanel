@@ -1,17 +1,22 @@
 import type { Metadata } from 'next';
+import { getLocale } from '@/lib/i18n';
+import { getTheme } from '@/lib/theme';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Pteron Panel',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const theme = await getTheme();
+  const locale = await getLocale();
+
   return (
-    <html lang="ko">
+    <html lang={locale} className={theme}>
       <body>{children}</body>
     </html>
   );

@@ -7,7 +7,7 @@ import { requireUser } from '@/lib/auth/current-user';
 import type { ScopeUser } from '@/lib/authz/access';
 import { requireServerPermission, ServerAccessDeniedError } from '@/lib/authz/guard';
 import * as ptero from '@/lib/ptero/client';
-import { PteroApiError } from '@/lib/ptero/errors';
+import { PteroApiError, friendlyMessage } from '@/lib/ptero/errors';
 import {
   asIdentifier,
   type ScheduleTask,
@@ -49,7 +49,7 @@ function toFail(err: unknown): Fail {
     };
   }
 
-  const detail = err instanceof PteroApiError ? err.primary?.detail : undefined;
+  const detail = err instanceof PteroApiError ? friendlyMessage(err) : undefined;
   console.error('schedule action failed', err);
   return { ok: false, error: 'failed', detail };
 }
