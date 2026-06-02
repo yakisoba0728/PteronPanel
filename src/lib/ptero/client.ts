@@ -9,6 +9,7 @@ import {
   type PowerSignal,
   type PteroItem,
   type PteroList,
+  type ServerDatabase,
   type ServerIdentifier,
   type ServerResources,
   type WebsocketCredentials,
@@ -391,6 +392,77 @@ export async function deleteBackup(
   backupUuid: string,
 ): Promise<void> {
   await pteroFetch('client', `/servers/${id}/backups/${backupUuid}`, {
+    method: 'DELETE',
+  });
+}
+
+interface DbAttrs {
+  id: string;
+  name: string;
+  username: string;
+  host: { address: string; port: number };
+  connections_from: string;
+  max_connections: number;
+  relationships?: {
+    password?: { attributes: { password: string } };
+  };
+}
+
+function mapDb(attrs: DbAttrs): ServerDatabase {
+  return {
+    id: attrs.id,
+    name: attrs.name,
+    username: attrs.username,
+    host: attrs.host,
+    connections_from: attrs.connections_from,
+    max_connections: attrs.max_connections,
+    password: attrs.relationships?.password?.attributes.password,
+  };
+}
+
+export async function listDatabases(
+  id: ServerIdentifier,
+): Promise<ServerDatabase[]> {
+  const response = await pteroFetch<PteroList<DbAttrs>>(
+    'client',
+    `/servers/${id}/databases`,
+    { query: { include: 'password' } },
+  );
+
+  return response.data.map((item) => mapDb(item.attributes));
+}
+
+export async function createDatabase(
+  id: ServerIdentifier,
+  input: { database: string; remote: string },
+): Promise<ServerDatabase> {
+  const response = await pteroFetch<PteroItem<DbAttrs>>(
+    'client',
+    `/servers/${id}/databases`,
+    { method: 'POST', body: input },
+  );
+
+  return mapDb(response.attributes);
+}
+
+export async function rotateDatabasePassword(
+  id: ServerIdentifier,
+  dbId: string,
+): Promise<ServerDatabase> {
+  const response = await pteroFetch<PteroItem<DbAttrs>>(
+    'client',
+    `/servers/${id}/databases/${dbId}/rotate-password`,
+    { method: 'POST' },
+  );
+
+  return mapDb(response.attributes);
+}
+
+export async function deleteDatabase(
+  id: ServerIdentifier,
+  dbId: string,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/databases/${dbId}`, {
     method: 'DELETE',
   });
 }

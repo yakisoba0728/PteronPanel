@@ -232,3 +232,13 @@ export interface UpdateServerStartupInput {
   environment: Record<string, string>;
   skip_scripts?: boolean;
 }
+
+export interface ServerDatabase {
+  id: string;
+  name: string;
+  username: string;
+  host: { address: string; port: number };
+  connections_from: string;
+  max_connections: number;
+  password?: string;
+}
