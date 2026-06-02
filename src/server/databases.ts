@@ -133,11 +133,14 @@ export async function rotateDatabasePasswordAction(
   try {
     const input = validateInput(databaseIdInputSchema, { identifier, dbId });
     if ('ok' in input) return input;
-    const { id } = await guard(input.identifier);
-    return {
-      ok: true,
-      database: await ptero.rotateDatabasePassword(id, input.dbId),
-    };
+    const { user, id } = await guard(input.identifier);
+    const database = await ptero.rotateDatabasePassword(id, input.dbId);
+    await auditAction('database.rotate', {
+      userId: user.id,
+      target: id,
+      metadata: { dbId: input.dbId },
+    });
+    return { ok: true, database };
   } catch (err) {
     return toFail(err);
   }

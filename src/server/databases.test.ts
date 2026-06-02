@@ -109,6 +109,42 @@ describe('database mutation guards', () => {
     expect(await action()).toEqual({ ok: false, error: 'not_found' });
   });
 
+  it('writes an audit log (without the password) on rotate', async () => {
+    adminLists('1a2b3c4d');
+    mswServer.use(
+      http.post(
+        `${CLIENT}/servers/1a2b3c4d/databases/H1/rotate-password`,
+        () =>
+          HttpResponse.json({
+            object: 'server_database',
+            attributes: {
+              id: 'H1',
+              name: 'db',
+              username: 'u',
+              host: { address: 'h', port: 3306 },
+              connections_from: '%',
+              max_connections: 0,
+              relationships: {
+                password: { object: 'database_password', attributes: { password: 'super-secret' } },
+              },
+            },
+          }),
+      ),
+    );
+
+    const res = await rotateDatabasePasswordAction('1a2b3c4d', 'H1');
+
+    expect(res.ok).toBe(true);
+    expect(audit).toHaveBeenCalledTimes(1);
+    expect(audit).toHaveBeenCalledWith('database.rotate', {
+      userId: 'u1',
+      target: '1a2b3c4d',
+      metadata: { dbId: 'H1' },
+    });
+    const [, opts] = audit.mock.calls[0];
+    expect(JSON.stringify(opts)).not.toContain('super-secret');
+  });
+
   it('rejects traversal in database ids before an upstream path can change servers', async () => {
     adminLists('1a2b3c4d');
     let crossedServerBoundary = false;
