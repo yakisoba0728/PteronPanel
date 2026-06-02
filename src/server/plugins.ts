@@ -3,8 +3,9 @@
 import { z } from 'zod';
 import { audit } from '@/lib/audit';
 import { requireUser } from '@/lib/auth/current-user';
-import { encryptSecret } from '@/lib/crypto';
+import { decryptSecret, encryptSecret } from '@/lib/crypto';
 import { prisma } from '@/lib/db';
+import { deliverWebhook } from '@/lib/plugins/webhook';
 import {
   generatePluginToken,
   generateWebhookSecret,
@@ -23,6 +24,15 @@ export interface PluginRow {
   uiTabUrl: string | null;
   uiTabLabel: string | null;
   enabled: boolean;
+}
+
+export interface DeliveryRow {
+  id: string;
+  event: string;
+  status: string;
+  attempts: number;
+  responseCode: number | null;
+  createdAt: string;
 }
 
 const httpUrl = z
@@ -142,6 +152,77 @@ export async function deletePluginAction(id: string): Promise<Ok | Fail> {
 
   await prisma.plugin.delete({ where: { id } });
   await audit('plugin.delete', { userId: user.id, target: id });
+
+  return { ok: true };
+}
+
+export async function listDeliveriesAction(
+  pluginId: string,
+): Promise<Ok<{ deliveries: DeliveryRow[] }> | Fail> {
+  const user = await requireUser();
+  const plugin = await prisma.plugin.findFirst({
+    where: { id: pluginId, ownerId: user.id },
+  });
+  if (!plugin) return { ok: false, error: 'not_found' };
+
+  const rows = await prisma.webhookDelivery.findMany({
+    where: { pluginId },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  });
+
+  return {
+    ok: true,
+    deliveries: rows.map((delivery) => ({
+      id: delivery.id,
+      event: delivery.event,
+      status: delivery.status,
+      attempts: delivery.attempts,
+      responseCode: delivery.responseCode,
+      createdAt: delivery.createdAt.toISOString(),
+    })),
+  };
+}
+
+export async function retryDeliveryAction(
+  pluginId: string,
+  deliveryId: string,
+): Promise<Ok | Fail> {
+  const user = await requireUser();
+  const plugin = await prisma.plugin.findFirst({
+    where: { id: pluginId, ownerId: user.id },
+  });
+  if (!plugin || !plugin.webhookUrl || !plugin.webhookSecretEnc) {
+    return { ok: false, error: 'not_found' };
+  }
+
+  const delivery = await prisma.webhookDelivery.findFirst({
+    where: { id: deliveryId, pluginId },
+  });
+  if (!delivery) return { ok: false, error: 'not_found' };
+
+  const payload = {
+    id: delivery.id,
+    event: delivery.event,
+    server: null,
+    actor: null,
+    data: {},
+    retry: true,
+  };
+  const result = await deliverWebhook(
+    plugin.webhookUrl,
+    decryptSecret(plugin.webhookSecretEnc),
+    payload,
+  );
+  await prisma.webhookDelivery.update({
+    where: { id: delivery.id },
+    data: {
+      status: result.ok ? 'success' : 'failed',
+      attempts: { increment: 1 },
+      responseCode: result.status ?? null,
+      error: result.error ?? null,
+    },
+  });
 
   return { ok: true };
 }
