@@ -53,3 +53,16 @@ model AuditLog {
 
   @@index([userId, createdAt])
 }
+
+model ServerAccess {
+  id               String   @id @default(cuid())
+  pteroUuid        String
+  serverIdentifier String
+  serverUuid       String
+  serverName       String
+  syncedAt         DateTime @default(now())
+
+  @@unique([pteroUuid, serverIdentifier])
+  @@index([pteroUuid])
+  @@index([syncedAt])
+}
