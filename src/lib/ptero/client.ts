@@ -301,7 +301,7 @@ export async function listBackups(
   const first = await pteroFetch<PteroList<BackupEntry>>(
     'client',
     `/servers/${id}/backups`,
-    { query: { per_page: 100, page: 1 } },
+    { query: { per_page: 50, page: 1 } },
   );
   const data = [...first.data];
   const totalPages = first.meta.pagination.total_pages;
@@ -310,12 +310,24 @@ export async function listBackups(
     const next = await pteroFetch<PteroList<BackupEntry>>(
       'client',
       `/servers/${id}/backups`,
-      { query: { per_page: 100, page } },
+      { query: { per_page: 50, page } },
     );
     data.push(...next.data);
   }
 
   return data.map((item) => item.attributes);
+}
+
+export async function getBackup(
+  id: ServerIdentifier,
+  backupUuid: string,
+): Promise<BackupEntry> {
+  const response = await pteroFetch<{ attributes: BackupEntry }>(
+    'client',
+    `/servers/${id}/backups/${backupUuid}`,
+  );
+
+  return response.attributes;
 }
 
 export async function createBackup(

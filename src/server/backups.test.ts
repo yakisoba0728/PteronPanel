@@ -70,6 +70,38 @@ describe('backup mutation actions', () => {
     expect(audit).not.toHaveBeenCalled();
   });
 
+  it('refuses to delete a locked backup without issuing the DELETE', async () => {
+    adminListsServer('1a2b3c4d');
+    const deleteSpy = vi.fn();
+    mswServer.use(
+      http.get(`${CLIENT}/servers/1a2b3c4d/backups/b1`, () =>
+        HttpResponse.json({
+          object: 'backup',
+          attributes: {
+            uuid: 'b1',
+            name: 'daily',
+            bytes: 1,
+            checksum: null,
+            is_locked: true,
+            is_successful: true,
+            created_at: '',
+            completed_at: '',
+          },
+        }),
+      ),
+      http.delete(`${CLIENT}/servers/1a2b3c4d/backups/b1`, () => {
+        deleteSpy();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    const res = await deleteBackupAction('1a2b3c4d', 'b1');
+
+    expect(res).toEqual({ ok: false, error: 'locked' });
+    expect(deleteSpy).not.toHaveBeenCalled();
+    expect(audit).not.toHaveBeenCalled();
+  });
+
   it('audits backup lock toggles', async () => {
     adminListsServer('1a2b3c4d');
     mswServer.use(

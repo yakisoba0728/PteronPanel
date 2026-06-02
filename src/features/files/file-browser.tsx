@@ -164,7 +164,7 @@ export function FileBrowser({ identifier }: { identifier: string }) {
             root
           </button>
           {crumbs.map((crumb, index) => (
-            <span key={crumb}>
+            <span key={crumbs.slice(0, index + 1).join('/')}>
               {' / '}
               <button
                 className="hover:underline"
