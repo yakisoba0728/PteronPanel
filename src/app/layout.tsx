@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getLocale } from '@/lib/i18n';
 import { getTheme } from '@/lib/theme';
 import './globals.css';
 
@@ -12,9 +13,10 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const theme = await getTheme();
+  const locale = await getLocale();
 
   return (
-    <html lang="ko" className={theme}>
+    <html lang={locale} className={theme}>
       <body>{children}</body>
     </html>
   );

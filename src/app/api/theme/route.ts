@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server';
 import type { Theme } from '@/lib/theme';
 
+async function readTheme(request: Request): Promise<Theme> {
+  try {
+    const body = (await request.json()) as { theme?: Theme };
+    return body.theme === 'dark' ? 'dark' : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
 export async function POST(request: Request) {
-  const body = (await request.json()) as { theme?: Theme };
-  const theme: Theme = body.theme === 'dark' ? 'dark' : 'light';
+  const theme = await readTheme(request);
   const response = NextResponse.json({ ok: true });
 
   response.cookies.set('theme', theme, {

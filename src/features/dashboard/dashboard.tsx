@@ -19,7 +19,7 @@ export async function Dashboard() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold">안녕하세요, {res.username}</h1>
+        <h1 className="text-xl font-semibold">안녕하세요, {res.username}님</h1>
         <p className="mt-1 text-sm text-zinc-500">
           접근 가능한 서버와 주요 관리 메뉴를 확인하세요.
         </p>
@@ -27,7 +27,7 @@ export async function Dashboard() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
-          <div className="text-sm text-zinc-500">접근 가능한 서버</div>
+          <div className="text-sm text-zinc-500">접근 가능 서버</div>
           <div className="mt-2 text-3xl font-semibold">{res.totalServers}</div>
         </Card>
 

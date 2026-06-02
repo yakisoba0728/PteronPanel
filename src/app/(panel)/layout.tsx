@@ -51,7 +51,7 @@ export default async function PanelLayout({
               <ThemeToggle />
               <form action={logoutAction}>
                 <Button variant="ghost" type="submit">
-                  {translate(locale, 'nav.logout')}
+                  {translate(locale, 'action.logout')}
                 </Button>
               </form>
             </div>
