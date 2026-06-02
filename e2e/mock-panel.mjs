@@ -109,6 +109,49 @@ const server = createServer((req, res) => {
     });
   }
 
+  if (pathname === '/api/client/servers/1a2b3c4d/files/list') {
+    return json(
+      res,
+      list([
+        {
+          object: 'file_object',
+          attributes: {
+            name: 'server.properties',
+            mode: '-rw-r--r--',
+            mode_bits: '0644',
+            size: 20,
+            is_file: true,
+            is_symlink: false,
+            mimetype: 'text/plain',
+            created_at: '',
+            modified_at: '',
+          },
+        },
+      ]),
+    );
+  }
+
+  if (pathname === '/api/client/servers/1a2b3c4d/backups') {
+    return json(
+      res,
+      list([
+        {
+          object: 'backup',
+          attributes: {
+            uuid: 'bk-1',
+            name: 'daily',
+            bytes: 1048576,
+            checksum: 'abc',
+            is_locked: false,
+            is_successful: true,
+            created_at: '',
+            completed_at: '',
+          },
+        },
+      ]),
+    );
+  }
+
   if (pathname === '/ws-events') {
     return json(res, { events: wsEvents });
   }

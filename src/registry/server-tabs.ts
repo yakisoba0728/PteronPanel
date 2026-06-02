@@ -8,6 +8,8 @@ export interface ServerTab {
 export const serverTabs: ServerTab[] = [
   { key: 'overview', label: '개요', href: (id) => `/servers/${id}` },
   { key: 'console', label: '콘솔', href: (id) => `/servers/${id}/console` },
+  { key: 'files', label: '파일', href: (id) => `/servers/${id}/files` },
+  { key: 'backups', label: '백업', href: (id) => `/servers/${id}/backups` },
 ];
 
 export function registerServerTab(tab: ServerTab): void {
