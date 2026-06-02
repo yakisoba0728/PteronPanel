@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { asIdentifier, asUuid } from '@/lib/ptero/types';
 
-const { requireUser, resolveAccessibleServers, notFound } = vi.hoisted(() => ({
+const { requireUser, resolveAccessibleServers, ownerPluginTabs, notFound } = vi.hoisted(() => ({
   requireUser: vi.fn(),
   resolveAccessibleServers: vi.fn(),
+  ownerPluginTabs: vi.fn(),
   notFound: vi.fn(() => {
     throw new Error('NEXT_NOT_FOUND');
   }),
@@ -28,6 +29,10 @@ vi.mock('@/lib/authz/access', () => ({
   resolveAccessibleServers,
 }));
 
+vi.mock('@/lib/plugins/owner-tabs', () => ({
+  ownerPluginTabs,
+}));
+
 describe('ServerLayout', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -48,6 +53,9 @@ describe('ServerLayout', () => {
         name: 'Alpha',
       },
     ]);
+    ownerPluginTabs.mockResolvedValue([
+      { key: 'plugin:pl1', label: 'Plugin Tab', href: '/servers/1a2b3c4d/plugin/pl1' },
+    ]);
 
     const markup = renderToStaticMarkup(
       await ServerLayout({
@@ -59,6 +67,7 @@ describe('ServerLayout', () => {
     expect(markup).toContain('Alpha');
     expect(markup).toContain('href="/servers/1a2b3c4d"');
     expect(markup).toContain('href="/servers/1a2b3c4d/console"');
+    expect(markup).toContain('href="/servers/1a2b3c4d/plugin/pl1"');
     expect(markup).toContain('Body');
   });
 
