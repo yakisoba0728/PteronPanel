@@ -71,3 +71,26 @@ export interface WebsocketCredentials {
 }
 
 export type PowerSignal = 'start' | 'stop' | 'restart' | 'kill';
+
+export interface FileEntry {
+  name: string;
+  mode: string;
+  mode_bits: string;
+  size: number;
+  is_file: boolean;
+  is_symlink: boolean;
+  mimetype: string;
+  created_at: string;
+  modified_at: string;
+}
+
+export interface BackupEntry {
+  uuid: string;
+  name: string;
+  bytes: number;
+  checksum: string | null;
+  is_locked: boolean;
+  is_successful: boolean;
+  created_at: string;
+  completed_at: string | null;
+}
