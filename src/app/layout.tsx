@@ -16,7 +16,7 @@ export default async function RootLayout({
   const locale = await getLocale();
 
   return (
-    <html lang={locale} className={theme}>
+    <html lang={locale} className={theme === 'dark' ? 'dark' : ''}>
       <body>{children}</body>
     </html>
   );
