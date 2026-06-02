@@ -8,7 +8,7 @@ const valid = {
   DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
   SESSION_SECRET: 'a-very-long-secret-value',
   APP_BASE_URL: 'http://localhost:3000',
-} as NodeJS.ProcessEnv;
+} as unknown as NodeJS.ProcessEnv;
 
 describe('parseConfig', () => {
   it('parses a valid environment and applies defaults', () => {
@@ -20,7 +20,7 @@ describe('parseConfig', () => {
 
   it('throws with a readable message when PANEL_URL is missing', () => {
     const { PANEL_URL, ...rest } = valid;
-    expect(() => parseConfig(rest as NodeJS.ProcessEnv)).toThrow(/PANEL_URL/);
+    expect(() => parseConfig(rest as unknown as NodeJS.ProcessEnv)).toThrow(/PANEL_URL/);
   });
 
   it('rejects a too-short SESSION_SECRET', () => {

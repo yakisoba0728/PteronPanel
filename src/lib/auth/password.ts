@@ -1,7 +1,7 @@
-import { Algorithm, hash, verify } from '@node-rs/argon2';
+import { hash, verify } from '@node-rs/argon2';
 
 const OPTS = {
-  algorithm: Algorithm.Argon2id,
+  algorithm: 2,
   memoryCost: 19_456,
   timeCost: 2,
   parallelism: 1,
