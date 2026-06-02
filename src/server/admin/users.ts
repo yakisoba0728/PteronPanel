@@ -7,7 +7,7 @@ import { requireUser } from '@/lib/auth/current-user';
 import { hashPassword } from '@/lib/auth/password';
 import { assertAdmin, AdminRequiredError } from '@/lib/authz/admin';
 import { prisma } from '@/lib/db';
-import { PteroApiError } from '@/lib/ptero/errors';
+import { PteroApiError, friendlyMessage } from '@/lib/ptero/errors';
 import {
   createUser as createPteroUser,
   deleteUser as deletePteroUser,
@@ -40,7 +40,7 @@ function fail(err: unknown): Fail {
     };
   }
 
-  const detail = err instanceof PteroApiError ? err.primary?.detail : undefined;
+  const detail = err instanceof PteroApiError ? friendlyMessage(err) : undefined;
   console.error('admin user action failed', err);
   return { ok: false, error: 'failed', detail };
 }

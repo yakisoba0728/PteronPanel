@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { audit } from '@/lib/audit';
 import { requireUser } from '@/lib/auth/current-user';
 import { assertAdmin, AdminRequiredError } from '@/lib/authz/admin';
-import { PteroApiError } from '@/lib/ptero/errors';
+import { PteroApiError, friendlyMessage } from '@/lib/ptero/errors';
 import * as app from '@/lib/ptero/application';
 import type { PteroLocation, PteroNode } from '@/lib/ptero/types';
 
@@ -34,7 +34,7 @@ function fail(err: unknown): Fail {
     };
   }
 
-  const detail = err instanceof PteroApiError ? err.primary?.detail : undefined;
+  const detail = err instanceof PteroApiError ? friendlyMessage(err) : undefined;
   console.error('admin infra action failed', err);
   return { ok: false, error: 'failed', detail };
 }
