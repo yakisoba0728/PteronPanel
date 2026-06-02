@@ -69,6 +69,34 @@ Docker Compose에서는 `DATABASE_URL`의 호스트가 `db`여야 합니다. 호
 - `SESSION_SECRET`은 충분히 긴 무작위 값으로 설정하고 저장소나 이미지에 포함하지 않습니다.
 - 서브유저 권한 변경이 Pterodactyl에서 발생한 뒤에는 정기적으로 접근 스코프 동기화를 실행합니다.
 
+## 플러그인 외부 통합
+
+사용자는 `/account/plugins`에서 외부 플러그인을 등록할 수 있습니다. 등록 시 `ptex_` API 토큰과 webhook 시크릿이 1회 표시됩니다. `ptex_` 토큰 원문은 저장하지 않고 `SESSION_SECRET` 기반 HMAC 해시만 데이터베이스에 저장합니다. webhook 시크릿은 `SESSION_SECRET`에서 파생한 AES-GCM 키로 암호화해 저장합니다.
+
+플러그인 서비스는 자체 인프라에 호스팅하고, Pteron Panel의 `/api/ext/*` API를 호출할 때 아래처럼 토큰을 전달합니다.
+
+```http
+Authorization: Bearer ptex_...
+```
+
+현재 노출된 스코프 API:
+
+- `GET /api/ext/servers`
+- `GET /api/ext/servers/{id}`
+- `GET /api/ext/servers/{id}/resources`
+- `POST /api/ext/servers/{id}/power` with `{ "signal": "start|stop|restart|kill" }`
+- `POST /api/ext/servers/{id}/command` with `{ "command": "..." }`
+- `GET /api/ext/servers/{id}/files/list?directory=/`
+- `GET /api/ext/servers/{id}/files/contents?file=/path`
+- `POST /api/ext/servers/{id}/files/write` with `{ "file": "/path", "content": "..." }`
+- `GET /api/ext/servers/{id}/backups`
+- `POST /api/ext/servers/{id}/backups` with optional `{ "name": "..." }`
+- `GET /api/ext/servers/{id}/backups/{uuid}/download`
+
+모든 `/api/ext` 요청은 토큰을 등록한 소유자의 현재 접근 스코프로 다시 해석합니다. 소유자가 접근할 수 없는 서버는 404로 숨기고, 비활성화된 플러그인 토큰은 401로 거부합니다. 플러그인에는 Pterodactyl 마스터 키나 `SESSION_SECRET` 원문이 전달되지 않습니다.
+
+Webhook 이벤트와 iframe UI 탭은 Phase 6b/6c에서 확장됩니다. 6a에서는 등록 입력과 시크릿 저장 기반, 그리고 owner-scoped API 호출 기반을 제공합니다.
+
 ## 개발
 
 ```bash
