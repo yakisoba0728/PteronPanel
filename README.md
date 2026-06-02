@@ -134,7 +134,37 @@ Payload 스키마:
 
 디스패처는 활성화된 플러그인 중 webhook URL이 있고 해당 이벤트를 구독했으며, 플러그인 소유자가 대상 서버에 접근할 수 있는 경우에만 전송합니다. 전송 결과는 `/account/plugins`의 플러그인별 로그에서 확인하고 실패 건은 수동 재시도할 수 있습니다.
 
-iframe UI 탭은 Phase 6c에서 확장됩니다.
+### 플러그인 iframe UI 탭
+
+플러그인 등록 시 `UI 탭 URL`과 `탭 라벨`을 입력하면, 플러그인 소유자가 접근할 수 있는 서버 화면에 해당 탭이 추가됩니다. 패널은 외부 UI를 샌드박스 iframe으로만 렌더링하며 `allow-same-origin`을 부여하지 않습니다.
+
+```html
+<iframe sandbox="allow-scripts allow-forms allow-popups" src="https://plugin.example/ui"></iframe>
+```
+
+장기 `ptex_` 토큰은 iframe URL, 브라우저 코드, query string에 넣지 마세요. 서버 탭 페이지는 iframe이 로드되면 `postMessage`로 5분짜리 단기 컨텍스트 토큰(`ptxc_`)만 전달합니다.
+
+```ts
+window.addEventListener('message', async (event) => {
+  if (event.data?.type !== 'pteron:context') return;
+
+  const { token, apiBase } = event.data as {
+    type: 'pteron:context';
+    token: string;
+    apiBase: string;
+  };
+
+  const response = await fetch(`${apiBase}/api/ext/servers`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const servers = await response.json();
+  console.log(servers);
+});
+```
+
+플러그인 UI는 message origin을 자체 허용 목록으로 검증하고, 받은 `ptxc_` 토큰을 저장하지 말고 현재 iframe 세션에서만 사용하세요. `/api/ext/*`는 `ptex_`와 `ptxc_`를 모두 받지만, iframe에는 `ptxc_`만 전달해야 합니다.
+
+CSP `frame-src`를 등록된 플러그인 origin으로 동적으로 제한하는 하드닝은 후속 작업입니다. 현재 구현은 iframe sandbox와 소유자 스코프 토큰 검증으로 격리합니다.
 
 ## 개발
 
