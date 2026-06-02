@@ -8,6 +8,7 @@ import {
   requireServerPermission,
   ServerAccessDeniedError,
 } from '@/lib/authz/guard';
+import { emitEvent } from '@/lib/plugins/events';
 import { resolveAccessibleServers, type ScopeUser } from '@/lib/authz/access';
 import { getServer, powerServer } from '@/lib/ptero/client';
 import { PteroApiError, friendlyMessage } from '@/lib/ptero/errors';
@@ -67,6 +68,11 @@ export async function powerServerAction(
       userId: user.id,
       target: id,
       metadata: { signal },
+    });
+    void emitEvent('server.power', {
+      serverIdentifier: id,
+      actorUserId: user.id,
+      data: { signal },
     });
     return { ok: true };
   } catch (err) {

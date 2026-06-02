@@ -36,7 +36,7 @@ export default async function PanelLayout({
               </Link>
             )}
             <Link
-              href="/account"
+              href="/account/plugins"
               className="block rounded px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
               {translate(locale, 'nav.account')}

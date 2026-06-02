@@ -69,6 +69,105 @@ Docker Compose에서는 `DATABASE_URL`의 호스트가 `db`여야 합니다. 호
 - `SESSION_SECRET`은 충분히 긴 무작위 값으로 설정하고 저장소나 이미지에 포함하지 않습니다.
 - 서브유저 권한 변경이 Pterodactyl에서 발생한 뒤에는 정기적으로 접근 스코프 동기화를 실행합니다.
 
+## 플러그인 외부 통합
+
+사용자는 `/account/plugins`에서 외부 플러그인을 등록할 수 있습니다. 등록 시 `ptex_` API 토큰과 webhook 시크릿이 1회 표시됩니다. `ptex_` 토큰 원문은 저장하지 않고 `SESSION_SECRET` 기반 HMAC 해시만 데이터베이스에 저장합니다. webhook 시크릿은 `SESSION_SECRET`에서 파생한 AES-GCM 키로 암호화해 저장합니다.
+
+플러그인 서비스는 자체 인프라에 호스팅하고, Pteron Panel의 `/api/ext/*` API를 호출할 때 아래처럼 토큰을 전달합니다.
+
+```http
+Authorization: Bearer ptex_...
+```
+
+현재 노출된 스코프 API:
+
+- `GET /api/ext/servers`
+- `GET /api/ext/servers/{id}`
+- `GET /api/ext/servers/{id}/resources`
+- `POST /api/ext/servers/{id}/power` with `{ "signal": "start|stop|restart|kill" }`
+- `POST /api/ext/servers/{id}/command` with `{ "command": "..." }`
+- `GET /api/ext/servers/{id}/files/list?directory=/`
+- `GET /api/ext/servers/{id}/files/contents?file=/path`
+- `POST /api/ext/servers/{id}/files/write` with `{ "file": "/path", "content": "..." }`
+- `GET /api/ext/servers/{id}/backups`
+- `POST /api/ext/servers/{id}/backups` with optional `{ "name": "..." }`
+- `GET /api/ext/servers/{id}/backups/{uuid}/download`
+
+모든 `/api/ext` 요청은 토큰을 등록한 소유자의 현재 접근 스코프로 다시 해석합니다. 소유자가 접근할 수 없는 서버는 404로 숨기고, 비활성화된 플러그인 토큰은 401로 거부합니다. 각 플러그인은 보수적인 토큰별 버킷(분당 60회)을 적용받으며 초과 시 429가 반환됩니다. 플러그인에는 Pterodactyl 마스터 키나 `SESSION_SECRET` 원문이 전달되지 않습니다.
+
+### 플러그인 webhook 수신
+
+Webhook URL을 등록하고 이벤트를 구독하면 패널에서 발생한 동작이 플러그인 서비스로 `POST`됩니다. 현재 이벤트 타입은 `server.power`, `server.command`, `backup.create`, `backup.restore`, `file.write`, `file.delete`, `server.create`, `server.delete`입니다.
+
+Webhook URL은 `http`/`https`만 허용하지만, 기본적으로 localhost, 사설망, 링크 로컬, 예약 IP 대역은 등록 및 전송 직전에 차단합니다. 로컬 e2e 수신기처럼 사설 주소가 필요한 개발 환경에서만 `PTERON_ALLOW_LOCAL_WEBHOOKS=1`을 설정하세요. 실패한 webhook은 저장된 원본 payload로 재시도되며, webhook 시크릿은 플러그인 관리 화면에서 회전할 수 있습니다.
+
+요청 헤더:
+
+- `X-Pteron-Event`: 이벤트 타입
+- `X-Pteron-Timestamp`: Unix epoch seconds
+- `X-Pteron-Signature`: `sha256=HMAC_SHA256(webhookSecret, timestamp + "." + rawBody)`
+
+수신 서비스는 raw request body를 문자열 그대로 보존해 서명을 검증해야 합니다. timestamp는 서비스 기준으로 짧은 허용오차(예: 5분)를 두고 과거/미래 요청을 거부하세요.
+
+```ts
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
+function verifyPteronWebhook(secret: string, timestamp: string, body: string, signature: string) {
+  const expected =
+    'sha256=' +
+    createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex');
+
+  return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+}
+```
+
+Payload 스키마:
+
+```json
+{
+  "id": "webhook_delivery_id",
+  "event": "server.power",
+  "server": "1a2b3c4d",
+  "actor": "user_id_or_null",
+  "timestamp": "2026-06-02T00:00:00.000Z",
+  "data": {}
+}
+```
+
+디스패처는 활성화된 플러그인 중 webhook URL이 있고 해당 이벤트를 구독했으며, 플러그인 소유자가 대상 서버에 접근할 수 있는 경우에만 전송합니다. 전송 결과는 `/account/plugins`의 플러그인별 로그에서 확인하고 실패 건은 수동 재시도할 수 있습니다.
+
+### 플러그인 iframe UI 탭
+
+플러그인 등록 시 `UI 탭 URL`과 `탭 라벨`을 입력하면, 플러그인 소유자가 접근할 수 있는 서버 화면에 해당 탭이 추가됩니다. 패널은 외부 UI를 샌드박스 iframe으로만 렌더링하며 `allow-same-origin`을 부여하지 않습니다. 개발 플래그가 켜진 로컬 환경을 제외하면 UI 탭 URL은 `https:`여야 합니다.
+
+```html
+<iframe sandbox="allow-scripts allow-forms allow-popups" src="https://plugin.example/ui"></iframe>
+```
+
+장기 `ptex_` 토큰은 iframe URL, 브라우저 코드, query string에 넣지 마세요. 서버 탭 페이지는 iframe이 로드되면 `postMessage`로 5분짜리 단기 컨텍스트 토큰(`ptxc_`)만 전달합니다.
+
+```ts
+window.addEventListener('message', async (event) => {
+  if (event.data?.type !== 'pteron:context') return;
+
+  const { token, apiBase } = event.data as {
+    type: 'pteron:context';
+    token: string;
+    apiBase: string;
+  };
+
+  const response = await fetch(`${apiBase}/api/ext/servers`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const servers = await response.json();
+  console.log(servers);
+});
+```
+
+플러그인 UI는 message origin을 자체 허용 목록으로 검증하고, 받은 `ptxc_` 토큰을 저장하지 말고 현재 iframe 세션에서만 사용하세요. `/api/ext/*`는 `ptex_`와 `ptxc_`를 모두 받지만, iframe에는 `ptxc_`만 전달해야 합니다.
+
+CSP `frame-src`를 등록된 플러그인 origin으로 동적으로 제한하는 하드닝은 후속 작업입니다. 현재 구현은 iframe sandbox와 소유자 스코프 토큰 검증으로 격리합니다.
+
 ## 개발
 
 ```bash

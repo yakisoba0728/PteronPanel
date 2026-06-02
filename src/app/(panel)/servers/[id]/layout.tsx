@@ -3,8 +3,15 @@ import { notFound } from 'next/navigation';
 import { requireUser } from '@/lib/auth/current-user';
 import { requireServerAccess, ServerAccessDeniedError } from '@/lib/authz/guard';
 import { visibleTabs } from '@/lib/authz/visible-tabs';
+import { ownerPluginTabs } from '@/lib/plugins/owner-tabs';
 import { asIdentifier } from '@/lib/ptero/types';
 import { serverTabs } from '@/registry/server-tabs';
+
+interface RenderTab {
+  key: string;
+  label: string;
+  href: string;
+}
 
 export default async function ServerLayout({
   children,
@@ -24,14 +31,25 @@ export default async function ServerLayout({
   }
 
   let name = id;
-  let tabs = serverTabs;
+  let tabs: RenderTab[] = serverTabs.map((tab) => ({
+    key: tab.key,
+    label: tab.label,
+    href: tab.href(id),
+  }));
   try {
     const server = await requireServerAccess(
       { id: user.id, role: user.role, pteroUserId: user.pteroUserId },
       identifier,
     );
     name = server.name;
-    tabs = visibleTabs(server.accessKind ?? 'subuser', server.permissions ?? []);
+    tabs = [
+      ...visibleTabs(server.accessKind ?? 'subuser', server.permissions ?? []).map((tab) => ({
+        key: tab.key,
+        label: tab.label,
+        href: tab.href(id),
+      })),
+      ...(await ownerPluginTabs(user.id, id)),
+    ];
   } catch (error) {
     if (error instanceof ServerAccessDeniedError) notFound();
     throw error;
@@ -44,7 +62,7 @@ export default async function ServerLayout({
         {tabs.map((tab) => (
           <Link
             key={tab.key}
-            href={tab.href(id)}
+            href={tab.href}
             className="px-3 py-2 text-sm hover:text-indigo-600"
           >
             {tab.label}

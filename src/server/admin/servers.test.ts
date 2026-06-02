@@ -14,6 +14,11 @@ vi.mock('@/lib/auth/current-user', () => ({
   requireUser: vi.fn(async () => currentUser),
 }));
 vi.mock('@/lib/audit', () => ({ audit: vi.fn() }));
+vi.mock('@/lib/plugins/events', () => ({
+  dispatchEventToTargets: vi.fn(),
+  emitEvent: vi.fn(),
+  selectTargetPlugins: vi.fn(async () => []),
+}));
 
 import {
   createServerAction,
