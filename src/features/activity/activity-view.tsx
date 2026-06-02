@@ -5,6 +5,11 @@ import { Card } from '@/components/ui/card';
 import type { ActivityEntry } from '@/lib/ptero/types';
 import { listActivityAction } from '@/server/activity';
 
+function formatTimestamp(timestamp: string): string {
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? timestamp : date.toLocaleString();
+}
+
 export function ActivityView({ identifier }: { identifier: string }) {
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -38,10 +43,17 @@ export function ActivityView({ identifier }: { identifier: string }) {
                 key={entry.id}
                 className="border-t border-zinc-100 dark:border-zinc-800"
               >
-                <td className="px-4 py-2">{entry.event}</td>
+                <td className="px-4 py-2">
+                  <div>{entry.event}</div>
+                  {entry.description && (
+                    <div className="text-xs text-zinc-500">
+                      {entry.description}
+                    </div>
+                  )}
+                </td>
                 <td className="px-4 py-2 text-zinc-500">{entry.ip}</td>
                 <td className="px-4 py-2 text-right text-zinc-400">
-                  {new Date(entry.timestamp).toLocaleString()}
+                  {formatTimestamp(entry.timestamp)}
                 </td>
               </tr>
             ))}

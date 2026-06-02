@@ -91,6 +91,45 @@ describe('network action guards', () => {
     expect(await action()).toEqual({ ok: false, error: 'not_found' });
   });
 
+  it('audits a note change', async () => {
+    adminLists('1a2b3c4d');
+    mswServer.use(
+      http.post(`${CLIENT}/servers/1a2b3c4d/network/allocations/1`, () =>
+        HttpResponse.json(allocation({ notes: 'web' })),
+      ),
+    );
+
+    const res = await setAllocationNoteAction('1a2b3c4d', 1, 'web');
+
+    expect(res).toEqual({ ok: true });
+    expect(audit).toHaveBeenCalledTimes(1);
+    expect(audit).toHaveBeenCalledWith('network.note', {
+      userId: 'u1',
+      target: '1a2b3c4d',
+      metadata: { allocId: 1 },
+    });
+  });
+
+  it('audits a primary allocation change', async () => {
+    adminLists('1a2b3c4d');
+    mswServer.use(
+      http.post(
+        `${CLIENT}/servers/1a2b3c4d/network/allocations/1/primary`,
+        () => HttpResponse.json(allocation()),
+      ),
+    );
+
+    const res = await setPrimaryAllocationAction('1a2b3c4d', 1);
+
+    expect(res).toEqual({ ok: true });
+    expect(audit).toHaveBeenCalledTimes(1);
+    expect(audit).toHaveBeenCalledWith('network.primary', {
+      userId: 'u1',
+      target: '1a2b3c4d',
+      metadata: { allocId: 1 },
+    });
+  });
+
   it('blocks deleting the default allocation server-side', async () => {
     adminLists('1a2b3c4d');
     let deleted = false;
