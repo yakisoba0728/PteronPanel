@@ -10,11 +10,15 @@ import {
   type PowerSignal,
   type PteroItem,
   type PteroList,
+  type ScheduleInput,
+  type ScheduleTask,
   type ServerAllocation,
   type ServerDatabase,
   type ServerIdentifier,
   type ServerResources,
+  type ServerSchedule,
   type StartupVariable,
+  type TaskInput,
   type WebsocketCredentials,
 } from './types';
 
@@ -408,6 +412,132 @@ export async function deleteBackup(
     {
       method: 'DELETE',
     },
+  );
+}
+
+interface SchedAttrs {
+  id: number;
+  name: string;
+  cron: ServerSchedule['cron'];
+  is_active: boolean;
+  is_processing: boolean;
+  only_when_online: boolean;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  relationships?: { tasks?: { data: { attributes: ScheduleTask }[] } };
+}
+
+function mapSchedule(attrs: SchedAttrs): ServerSchedule {
+  return {
+    id: attrs.id,
+    name: attrs.name,
+    cron: attrs.cron,
+    is_active: attrs.is_active,
+    is_processing: attrs.is_processing,
+    only_when_online: attrs.only_when_online,
+    last_run_at: attrs.last_run_at,
+    next_run_at: attrs.next_run_at,
+    tasks: (attrs.relationships?.tasks?.data ?? []).map((task) => task.attributes),
+  };
+}
+
+export async function listSchedules(
+  id: ServerIdentifier,
+): Promise<ServerSchedule[]> {
+  const response = await pteroFetch<PteroList<SchedAttrs>>(
+    'client',
+    `/servers/${id}/schedules`,
+    { query: { include: 'tasks' } },
+  );
+
+  return response.data.map((item) => mapSchedule(item.attributes));
+}
+
+export async function createSchedule(
+  id: ServerIdentifier,
+  input: ScheduleInput,
+): Promise<ServerSchedule> {
+  const response = await pteroFetch<PteroItem<SchedAttrs>>(
+    'client',
+    `/servers/${id}/schedules`,
+    { method: 'POST', body: input },
+  );
+
+  return mapSchedule(response.attributes);
+}
+
+export async function updateSchedule(
+  id: ServerIdentifier,
+  schedId: number,
+  input: ScheduleInput,
+): Promise<ServerSchedule> {
+  const response = await pteroFetch<PteroItem<SchedAttrs>>(
+    'client',
+    `/servers/${id}/schedules/${pathSegment(schedId)}`,
+    { method: 'POST', body: input },
+  );
+
+  return mapSchedule(response.attributes);
+}
+
+export async function deleteSchedule(
+  id: ServerIdentifier,
+  schedId: number,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/schedules/${pathSegment(schedId)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function executeSchedule(
+  id: ServerIdentifier,
+  schedId: number,
+): Promise<void> {
+  await pteroFetch(
+    'client',
+    `/servers/${id}/schedules/${pathSegment(schedId)}/execute`,
+    { method: 'POST' },
+  );
+}
+
+export async function createTask(
+  id: ServerIdentifier,
+  schedId: number,
+  input: TaskInput,
+): Promise<ScheduleTask> {
+  const response = await pteroFetch<PteroItem<ScheduleTask>>(
+    'client',
+    `/servers/${id}/schedules/${pathSegment(schedId)}/tasks`,
+    { method: 'POST', body: input },
+  );
+
+  return response.attributes;
+}
+
+export async function updateTask(
+  id: ServerIdentifier,
+  schedId: number,
+  taskId: number,
+  input: TaskInput,
+): Promise<ScheduleTask> {
+  const response = await pteroFetch<PteroItem<ScheduleTask>>(
+    'client',
+    `/servers/${id}/schedules/${pathSegment(schedId)}/tasks/${pathSegment(taskId)}`,
+    { method: 'POST', body: input },
+  );
+
+  return response.attributes;
+}
+
+export async function deleteTask(
+  id: ServerIdentifier,
+  schedId: number,
+  taskId: number,
+): Promise<void> {
+  await pteroFetch(
+    'client',
+    `/servers/${id}/schedules/${pathSegment(schedId)}/tasks/${pathSegment(taskId)}`,
+    { method: 'DELETE' },
   );
 }
 

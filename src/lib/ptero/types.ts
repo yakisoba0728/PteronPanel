@@ -269,3 +269,49 @@ export interface ActivityEntry {
   description: string | null;
   timestamp: string;
 }
+
+export interface ScheduleTask {
+  id: number;
+  sequence_id: number;
+  action: 'command' | 'power' | 'backup';
+  payload: string;
+  time_offset: number;
+  is_queued: boolean;
+  continue_on_failure: boolean;
+}
+
+export interface ServerSchedule {
+  id: number;
+  name: string;
+  cron: {
+    minute: string;
+    hour: string;
+    day_of_week: string;
+    day_of_month: string;
+    month: string;
+  };
+  is_active: boolean;
+  is_processing: boolean;
+  only_when_online: boolean;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  tasks: ScheduleTask[];
+}
+
+export interface ScheduleInput {
+  name: string;
+  minute: string;
+  hour: string;
+  day_of_month: string;
+  month: string;
+  day_of_week: string;
+  is_active?: boolean;
+  only_when_online?: boolean;
+}
+
+export interface TaskInput {
+  action: 'command' | 'power' | 'backup';
+  payload: string;
+  time_offset: number;
+  continue_on_failure?: boolean;
+}
