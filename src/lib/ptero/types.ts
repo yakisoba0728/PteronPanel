@@ -156,3 +156,53 @@ export interface PteroEgg {
   startup: string;
   variables?: PteroEggVariable[];
 }
+
+export interface PteroServer {
+  id: number;
+  uuid: string;
+  identifier: string;
+  name: string;
+  user: number;
+  node: number;
+  suspended: boolean;
+  limits: {
+    memory: number;
+    swap: number;
+    disk: number;
+    io: number;
+    cpu: number;
+  };
+  feature_limits: {
+    databases: number;
+    allocations: number;
+    backups: number;
+  };
+}
+
+export interface CreateServerInput {
+  name: string;
+  user: number;
+  egg: number;
+  docker_image: string;
+  startup: string;
+  environment: Record<string, string>;
+  limits: {
+    memory: number;
+    swap: number;
+    disk: number;
+    io: number;
+    cpu: number;
+  };
+  feature_limits: {
+    databases: number;
+    allocations: number;
+    backups: number;
+  };
+  deploy?: {
+    locations: number[];
+    dedicated_ip: boolean;
+    port_range: string[];
+  };
+  allocation?: { default: number; additional?: number[] };
+  start_on_completion?: boolean;
+}

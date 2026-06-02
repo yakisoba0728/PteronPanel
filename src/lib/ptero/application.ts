@@ -4,6 +4,7 @@ import {
   asNumericId,
   asUuid,
   type AccessibleServer,
+  type CreateServerInput,
   type CreatePteroUserInput,
   type PteroEgg,
   type PteroEggVariable,
@@ -12,6 +13,7 @@ import {
   type PteroLocation,
   type PteroNest,
   type PteroNode,
+  type PteroServer,
   type PteroUser,
 } from './types';
 
@@ -221,4 +223,108 @@ export async function getEgg(
     startup: res.attributes.startup,
     variables,
   };
+}
+
+export async function listAllServers(): Promise<PteroServer[]> {
+  const items = await paginateAll<PteroServer>((page) =>
+    pteroFetch('application', '/servers', { query: { page, per_page: 100 } }),
+  );
+  return items.map((item) => item.attributes);
+}
+
+export async function getServerAdmin(id: number): Promise<PteroServer> {
+  const res = await pteroFetch<PteroItem<PteroServer>>(
+    'application',
+    `/servers/${id}`,
+  );
+  return res.attributes;
+}
+
+export async function createServer(
+  input: CreateServerInput,
+): Promise<PteroServer> {
+  const res = await pteroFetch<PteroItem<PteroServer>>(
+    'application',
+    '/servers',
+    { method: 'POST', body: input },
+  );
+  return res.attributes;
+}
+
+export async function updateServerDetails(
+  id: number,
+  input: {
+    name?: string;
+    user?: number;
+    external_id?: string;
+    description?: string;
+  },
+): Promise<PteroServer> {
+  const res = await pteroFetch<PteroItem<PteroServer>>(
+    'application',
+    `/servers/${id}/details`,
+    { method: 'PATCH', body: input },
+  );
+  return res.attributes;
+}
+
+export async function updateServerBuild(
+  id: number,
+  input: {
+    limits?: Partial<CreateServerInput['limits']>;
+    feature_limits?: Partial<CreateServerInput['feature_limits']>;
+    allocation?: number;
+  },
+): Promise<PteroServer> {
+  const res = await pteroFetch<PteroItem<PteroServer>>(
+    'application',
+    `/servers/${id}/build`,
+    { method: 'PATCH', body: input },
+  );
+  return res.attributes;
+}
+
+export async function updateServerStartup(
+  id: number,
+  input: {
+    startup?: string;
+    egg?: number;
+    image?: string;
+    environment?: Record<string, string>;
+    skip_scripts?: boolean;
+  },
+): Promise<PteroServer> {
+  const res = await pteroFetch<PteroItem<PteroServer>>(
+    'application',
+    `/servers/${id}/startup`,
+    { method: 'PATCH', body: input },
+  );
+  return res.attributes;
+}
+
+export async function suspendServer(id: number): Promise<void> {
+  await pteroFetch('application', `/servers/${id}/suspend`, {
+    method: 'POST',
+  });
+}
+
+export async function unsuspendServer(id: number): Promise<void> {
+  await pteroFetch('application', `/servers/${id}/unsuspend`, {
+    method: 'POST',
+  });
+}
+
+export async function reinstallServer(id: number): Promise<void> {
+  await pteroFetch('application', `/servers/${id}/reinstall`, {
+    method: 'POST',
+  });
+}
+
+export async function deleteServer(
+  id: number,
+  force = false,
+): Promise<void> {
+  await pteroFetch('application', `/servers/${id}${force ? '/force' : ''}`, {
+    method: 'DELETE',
+  });
 }
