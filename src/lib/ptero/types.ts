@@ -115,3 +115,44 @@ export interface CreatePteroUserInput {
   root_admin?: boolean;
   external_id?: string;
 }
+
+export interface PteroNode {
+  id: number;
+  name: string;
+  fqdn: string;
+  memory: number;
+  memory_overallocate: number;
+  disk: number;
+  disk_overallocate: number;
+  location_id: number;
+  maintenance_mode: boolean;
+}
+
+export interface PteroLocation {
+  id: number;
+  short: string;
+  long: string | null;
+}
+
+export interface PteroNest {
+  id: number;
+  name: string;
+  description: string | null;
+}
+
+export interface PteroEggVariable {
+  name: string;
+  description: string;
+  env_variable: string;
+  default_value: string;
+  rules: string;
+  user_editable: boolean;
+}
+
+export interface PteroEgg {
+  id: number;
+  name: string;
+  docker_image: string;
+  startup: string;
+  variables?: PteroEggVariable[];
+}

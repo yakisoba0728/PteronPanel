@@ -5,8 +5,13 @@ import {
   asUuid,
   type AccessibleServer,
   type CreatePteroUserInput,
+  type PteroEgg,
+  type PteroEggVariable,
   type PteroItem,
   type PteroList,
+  type PteroLocation,
+  type PteroNest,
+  type PteroNode,
   type PteroUser,
 } from './types';
 
@@ -121,4 +126,99 @@ export async function updateUser(
 
 export async function deleteUser(id: number): Promise<void> {
   await pteroFetch('application', `/users/${id}`, { method: 'DELETE' });
+}
+
+export async function listNodes(): Promise<PteroNode[]> {
+  const items = await paginateAll<PteroNode>((page) =>
+    pteroFetch('application', '/nodes', { query: { page, per_page: 100 } }),
+  );
+  return items.map((item) => item.attributes);
+}
+
+export async function getNode(id: number): Promise<PteroNode> {
+  const res = await pteroFetch<PteroItem<PteroNode>>(
+    'application',
+    `/nodes/${id}`,
+  );
+  return res.attributes;
+}
+
+export async function listLocations(): Promise<PteroLocation[]> {
+  const items = await paginateAll<PteroLocation>((page) =>
+    pteroFetch('application', '/locations', {
+      query: { page, per_page: 100 },
+    }),
+  );
+  return items.map((item) => item.attributes);
+}
+
+export async function createLocation(input: {
+  short: string;
+  long?: string;
+}): Promise<PteroLocation> {
+  const res = await pteroFetch<PteroItem<PteroLocation>>(
+    'application',
+    '/locations',
+    { method: 'POST', body: input },
+  );
+  return res.attributes;
+}
+
+export async function updateLocation(
+  id: number,
+  input: { short?: string; long?: string },
+): Promise<PteroLocation> {
+  const res = await pteroFetch<PteroItem<PteroLocation>>(
+    'application',
+    `/locations/${id}`,
+    { method: 'PATCH', body: input },
+  );
+  return res.attributes;
+}
+
+export async function deleteLocation(id: number): Promise<void> {
+  await pteroFetch('application', `/locations/${id}`, { method: 'DELETE' });
+}
+
+export async function listNests(): Promise<PteroNest[]> {
+  const items = await paginateAll<PteroNest>((page) =>
+    pteroFetch('application', '/nests', { query: { page, per_page: 100 } }),
+  );
+  return items.map((item) => item.attributes);
+}
+
+export async function listEggs(nestId: number): Promise<PteroEgg[]> {
+  const items = await paginateAll<PteroEgg>((page) =>
+    pteroFetch('application', `/nests/${nestId}/eggs`, {
+      query: { page, per_page: 100 },
+    }),
+  );
+  return items.map((item) => item.attributes);
+}
+
+export async function getEgg(
+  nestId: number,
+  eggId: number,
+): Promise<PteroEgg> {
+  const res = await pteroFetch<
+    PteroItem<
+      PteroEgg & {
+        relationships?: { variables?: PteroList<PteroEggVariable> };
+      }
+    >
+  >('application', `/nests/${nestId}/eggs/${eggId}`, {
+    query: { include: 'variables' },
+  });
+  const variables =
+    res.attributes.relationships?.variables?.data.map(
+      (item) => item.attributes,
+    ) ?? [];
+
+  return {
+    id: res.attributes.id,
+    name: res.attributes.name,
+    docker_image: res.attributes.docker_image,
+    startup: res.attributes.startup,
+    variables,
+  };
 }
