@@ -1,7 +1,9 @@
-import 'dotenv/config';
+import { config as loadEnv } from 'dotenv';
 import { prisma } from '../src/lib/db';
 import { hashPassword } from '../src/lib/auth/password';
 import { findUserByEmail } from '../src/lib/ptero/application';
+
+loadEnv({ quiet: true });
 
 function req(name: string): string {
   const value = process.env[name];

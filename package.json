@@ -5,16 +5,16 @@
   "packageManager": "pnpm@9.12.0",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS=--disable-warning=DEP0205 next build",
     "start": "next start",
-    "e2e": "playwright test",
+    "e2e": "env -u NO_COLOR NEXT_TELEMETRY_DISABLED=1 PRISMA_HIDE_UPDATE_MESSAGE=1 NODE_OPTIONS=--disable-warning=DEP0205 playwright test",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
+    "test": "NODE_OPTIONS=--disable-warning=DEP0205 vitest run",
+    "test:watch": "NODE_OPTIONS=--disable-warning=DEP0205 vitest",
+    "db:generate": "prisma generate --no-hints",
+    "db:migrate": "PRISMA_HIDE_UPDATE_MESSAGE=1 prisma migrate dev",
+    "db:deploy": "PRISMA_HIDE_UPDATE_MESSAGE=1 prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
@@ -36,7 +36,7 @@
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.1",
     "@types/ws": "^8.18.1",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^6.0.2",
     "dotenv": "^17.4.2",
     "eslint": "^9.16.0",
     "eslint-config-next": "^15.1.0",
@@ -47,7 +47,8 @@
     "tailwindcss": "^4.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8",
     "ws": "^8.21.0"
   }
 }

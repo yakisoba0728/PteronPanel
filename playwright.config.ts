@@ -1,14 +1,19 @@
 import { defineConfig } from '@playwright/test';
 import { config as loadEnv } from 'dotenv';
 
-loadEnv({ path: '.env.test', override: true });
+loadEnv({ path: '.env.test', override: true, quiet: true });
 
 const localLibPath = '/tmp/pteron-playwright-libs/extracted/usr/lib/x86_64-linux-gnu';
+const sanitizedEnv = { ...process.env };
+delete sanitizedEnv.NO_COLOR;
+
 process.env.LD_LIBRARY_PATH = [localLibPath, process.env.LD_LIBRARY_PATH]
   .filter(Boolean)
   .join(':');
+sanitizedEnv.LD_LIBRARY_PATH = process.env.LD_LIBRARY_PATH;
+
 const webServerEnv: Record<string, string> = Object.fromEntries(
-  Object.entries(process.env).filter((entry): entry is [string, string] => {
+  Object.entries(sanitizedEnv).filter((entry): entry is [string, string] => {
     return typeof entry[1] === 'string';
   }),
 );
