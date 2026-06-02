@@ -7,6 +7,11 @@ const localLibPath = '/tmp/pteron-playwright-libs/extracted/usr/lib/x86_64-linux
 process.env.LD_LIBRARY_PATH = [localLibPath, process.env.LD_LIBRARY_PATH]
   .filter(Boolean)
   .join(':');
+const webServerEnv: Record<string, string> = Object.fromEntries(
+  Object.entries(process.env).filter((entry): entry is [string, string] => {
+    return typeof entry[1] === 'string';
+  }),
+);
 
 export default defineConfig({
   testDir: './e2e',
@@ -24,7 +29,7 @@ export default defineConfig({
       command: 'node e2e/start-dev.mjs',
       port: 3000,
       reuseExistingServer: !process.env.CI,
-      env: { ...process.env },
+      env: webServerEnv,
     },
   ],
 });
