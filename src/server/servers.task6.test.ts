@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { asIdentifier, asUuid } from '@/lib/ptero/types';
+import { PteroApiError } from '@/lib/ptero/errors';
 
 const { requireUser, resolveAccessibleServers, getServer, powerServer, audit } = vi.hoisted(
   () => ({
@@ -117,5 +118,38 @@ describe('powerServerAction', () => {
         metadata: { signal: 'restart' },
       }),
     );
+  });
+
+  it('maps a 409 from the client to a conflict result', async () => {
+    const { powerServerAction } = await import('./servers');
+
+    requireUser.mockResolvedValue({
+      id: 'user-1',
+      role: 'USER',
+      pteroUserId: 7,
+    });
+    resolveAccessibleServers.mockResolvedValue([
+      {
+        identifier: asIdentifier('1a2b3c4d'),
+        uuid: asUuid('1a2b3c4d-5e6f-7081-9234-567890abcdef'),
+        name: 'Alpha',
+      },
+    ]);
+    powerServer.mockRejectedValue(
+      new PteroApiError(409, [
+        {
+          code: 'ConflictException',
+          status: '409',
+          detail: 'Server is already running.',
+        },
+      ]),
+    );
+
+    await expect(powerServerAction('1a2b3c4d', 'start')).resolves.toEqual({
+      ok: false,
+      error: 'conflict',
+      detail: 'Server is already running.',
+    });
+    expect(audit).not.toHaveBeenCalled();
   });
 });

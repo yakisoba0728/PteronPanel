@@ -26,11 +26,17 @@ export function PowerControls({ identifier }: { identifier: string }) {
     startTransition(async () => {
       const result = await powerServerAction(identifier, signal);
       if (!result.ok) {
-        setMessage(
-          result.error === 'not_found'
-            ? '서버를 찾을 수 없습니다.'
-            : '작업에 실패했습니다.',
-        );
+        if (result.error === 'not_found') {
+          setMessage('서버를 찾을 수 없습니다.');
+        } else if (result.error === 'conflict') {
+          setMessage(
+            result.detail
+              ? `현재 작업할 수 없는 상태입니다. (${result.detail})`
+              : '현재 작업할 수 없는 상태입니다.',
+          );
+        } else {
+          setMessage('작업에 실패했습니다.');
+        }
       }
     });
   }
