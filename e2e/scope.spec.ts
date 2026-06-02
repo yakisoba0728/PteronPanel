@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-async function login(page, identifier: string, password: string) {
+async function login(page: Page, identifier: string, password: string) {
   await page.goto('/login');
   await page.fill('input[name="identifier"]', identifier);
   await page.fill('input[name="password"]', password);
@@ -27,4 +27,14 @@ test('console page renders the terminal for an accessible server', async ({ page
   await login(page, 'user', 'user-pass');
   await page.goto('/servers/1a2b3c4d/console');
   await expect(page.locator('.xterm')).toBeVisible();
+  await expect(page.getByText('CPU 2.5%')).toBeVisible();
+  await page.getByPlaceholder('콘솔 명령어 입력…').fill('say hello');
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: '재시작' }).click();
+  await expect
+    .poll(async () => (await page.request.get('http://127.0.0.1:9099/ws-events')).json())
+    .toMatchObject({ events: expect.arrayContaining([{ event: 'send command', args: ['say hello'] }]) });
+  await expect
+    .poll(async () => (await page.request.get('http://127.0.0.1:9099/ws-events')).json())
+    .toMatchObject({ events: expect.arrayContaining([{ event: 'set state', args: ['restart'] }]) });
 });

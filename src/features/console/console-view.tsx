@@ -4,10 +4,19 @@ import { useEffect, useRef, useState } from 'react';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { getConsoleCredentials } from '@/server/console';
+import type { PowerSignal } from '@/lib/ptero/types';
 import { ConsoleSocket, type ConsoleStats } from './socket';
+
+const powerActions: Array<{ signal: PowerSignal; label: string; variant: 'primary' | 'secondary' | 'danger' }> = [
+  { signal: 'start', label: '시작', variant: 'primary' },
+  { signal: 'restart', label: '재시작', variant: 'secondary' },
+  { signal: 'stop', label: '정지', variant: 'secondary' },
+  { signal: 'kill', label: '강제종료', variant: 'danger' },
+];
 
 export function ConsoleView({ identifier }: { identifier: string }) {
   const termRef = useRef<HTMLDivElement>(null);
@@ -61,12 +70,17 @@ export function ConsoleView({ identifier }: { identifier: string }) {
     });
 
     socketRef.current = sock;
-    void sock.connect().then(() => sock.requestLogs());
+    void sock.connect().then(() => {
+      sock.requestLogs();
+      sock.requestStats();
+    });
 
     const onResize = () => fit.fit();
+    const statsTimer = window.setInterval(() => sock.requestStats(), 10_000);
     window.addEventListener('resize', onResize);
 
     return () => {
+      window.clearInterval(statsTimer);
       window.removeEventListener('resize', onResize);
       sock.close();
       term.dispose();
@@ -80,6 +94,10 @@ export function ConsoleView({ identifier }: { identifier: string }) {
     if (!trimmed) return;
     socketRef.current?.sendCommand(trimmed);
     setCommand('');
+  }
+
+  function setPower(signal: PowerSignal) {
+    socketRef.current?.setState(signal);
   }
 
   return (
@@ -99,6 +117,19 @@ export function ConsoleView({ identifier }: { identifier: string }) {
       <Card className="p-0">
         <div ref={termRef} className="h-[480px] w-full overflow-hidden rounded-lg" />
       </Card>
+
+      <div className="flex flex-wrap gap-2">
+        {powerActions.map((action) => (
+          <Button
+            key={action.signal}
+            type="button"
+            variant={action.variant}
+            onClick={() => setPower(action.signal)}
+          >
+            {action.label}
+          </Button>
+        ))}
+      </div>
 
       <form onSubmit={submitCommand} className="flex gap-2">
         <Input

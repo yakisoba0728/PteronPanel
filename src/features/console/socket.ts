@@ -24,6 +24,8 @@ interface WingsMessage {
 }
 
 type WsCtor = { new (url: string): WebSocket };
+const WS_OPEN = 1;
+export const CONSOLE_TOKEN_REFRESH_MS = 7 * 60_000;
 
 export interface ConsoleSocketDeps {
   getCredentials: () => Promise<WebsocketCredentials>;
@@ -35,6 +37,8 @@ export class ConsoleSocket {
   private ws: WebSocket | null = null;
   private closedByUser = false;
   private reconnectAttempts = 0;
+  private queue: string[] = [];
+  private tokenRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly WS: WsCtor;
 
   constructor(private readonly deps: ConsoleSocketDeps) {
@@ -42,6 +46,7 @@ export class ConsoleSocket {
   }
 
   async connect(): Promise<void> {
+    this.clearTokenRefreshTimer();
     const creds = await this.deps.getCredentials();
     const ws = new this.WS(creds.socket);
     this.ws = ws;
@@ -49,6 +54,8 @@ export class ConsoleSocket {
     ws.onopen = () => {
       this.reconnectAttempts = 0;
       this.send('auth', [creds.token]);
+      this.flushQueue();
+      this.scheduleTokenRefresh();
       this.deps.onEvent({ type: 'open' });
     };
     ws.onmessage = (event: MessageEvent) =>
@@ -69,13 +76,30 @@ export class ConsoleSocket {
     this.send('send logs', []);
   }
 
+  requestStats(): void {
+    this.send('send stats', []);
+  }
+
   close(): void {
     this.closedByUser = true;
+    this.clearTokenRefreshTimer();
     this.ws?.close();
   }
 
   private send(event: string, args: string[]): void {
-    this.ws?.send(JSON.stringify({ event, args }));
+    const payload = JSON.stringify({ event, args });
+    if (!this.ws || this.ws.readyState !== WS_OPEN) {
+      this.queue.push(payload);
+      return;
+    }
+    this.ws.send(payload);
+  }
+
+  private flushQueue(): void {
+    if (!this.ws || this.ws.readyState !== WS_OPEN) return;
+    const queued = this.queue;
+    this.queue = [];
+    for (const payload of queued) this.ws.send(payload);
   }
 
   private async handleMessage(raw: string): Promise<void> {
@@ -144,12 +168,26 @@ export class ConsoleSocket {
     try {
       const creds = await this.deps.getCredentials();
       this.send('auth', [creds.token]);
+      this.scheduleTokenRefresh();
     } catch {
       this.deps.onEvent({ type: 'error', message: 'Failed to refresh console token' });
     }
   }
 
+  private scheduleTokenRefresh(): void {
+    this.clearTokenRefreshTimer();
+    this.tokenRefreshTimer = setTimeout(() => {
+      if (!this.closedByUser) void this.refreshToken();
+    }, CONSOLE_TOKEN_REFRESH_MS);
+  }
+
+  private clearTokenRefreshTimer(): void {
+    if (this.tokenRefreshTimer) clearTimeout(this.tokenRefreshTimer);
+    this.tokenRefreshTimer = null;
+  }
+
   private handleClose(code: number): void {
+    this.clearTokenRefreshTimer();
     const suspended = code === 4409;
     this.deps.onEvent({ type: 'close', code, suspended });
 

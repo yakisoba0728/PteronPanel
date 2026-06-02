@@ -1,5 +1,7 @@
+import { notFound } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { PowerControls } from '@/features/server-overview/power-controls';
+import { ServerAccessDeniedError } from '@/lib/authz/guard';
 import { getServerOverview } from '@/server/servers';
 
 export default async function OverviewPage({
@@ -8,7 +10,13 @@ export default async function OverviewPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { attributes } = await getServerOverview(id);
+  let attributes: Record<string, unknown>;
+  try {
+    ({ attributes } = await getServerOverview(id));
+  } catch (error) {
+    if (error instanceof ServerAccessDeniedError) notFound();
+    throw error;
+  }
   const limits = (attributes.limits ?? {}) as Record<string, number>;
 
   return (

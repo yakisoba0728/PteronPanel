@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { WebSocketServer } from 'ws';
 
 const OWNED = {
   object: 'server',
@@ -21,6 +22,8 @@ const OTHER = {
     node: 'Node 02',
   },
 };
+
+const wsEvents = [];
 
 function list(data) {
   return {
@@ -101,9 +104,13 @@ const server = createServer((req, res) => {
     return json(res, {
       data: {
         token: 'fake-jwt',
-        socket: 'ws://127.0.0.1:65535/never',
+        socket: 'ws://127.0.0.1:9099/ws',
       },
     });
+  }
+
+  if (pathname === '/ws-events') {
+    return json(res, { events: wsEvents });
   }
 
   return json(
@@ -119,6 +126,42 @@ const server = createServer((req, res) => {
     },
     404,
   );
+});
+
+const wss = new WebSocketServer({ server, path: '/ws' });
+
+function sendStats(ws) {
+  ws.send(
+    JSON.stringify({
+      event: 'stats',
+      args: [
+        JSON.stringify({
+          memory_bytes: 1048576,
+          cpu_absolute: 2.5,
+          disk_bytes: 2097152,
+          network: { rx_bytes: 1, tx_bytes: 2 },
+          uptime: 3,
+          state: 'running',
+        }),
+      ],
+    }),
+  );
+}
+
+wss.on('connection', (ws) => {
+  ws.on('message', (raw) => {
+    const message = JSON.parse(raw.toString());
+    wsEvents.push(message);
+
+    if (message.event === 'auth') {
+      ws.send(JSON.stringify({ event: 'auth success', args: [] }));
+      sendStats(ws);
+    }
+
+    if (message.event === 'send stats') {
+      sendStats(ws);
+    }
+  });
 });
 
 server.listen(9099, () => {

@@ -46,6 +46,48 @@ describe('client.listServers', () => {
 
     expect(servers[0]).toMatchObject({ identifier: '1a2b3c4d', name: 'Alpha' });
   });
+
+  it('paginates admin-all server results', async () => {
+    const seenPages: string[] = [];
+    mswServer.use(
+      http.get(`${BASE}/`, ({ request }) => {
+        const url = new URL(request.url);
+        const page = Number(url.searchParams.get('page') ?? '1');
+        seenPages.push(String(page));
+        return HttpResponse.json({
+          object: 'list',
+          data: [
+            {
+              object: 'server',
+              attributes: {
+                identifier: page === 1 ? '11111111' : '22222222',
+                internal_id: page,
+                uuid:
+                  page === 1
+                    ? '11111111-0000-4000-8000-000000000000'
+                    : '22222222-0000-4000-8000-000000000000',
+                name: `Page ${page}`,
+              },
+            },
+          ],
+          meta: {
+            pagination: {
+              total: 2,
+              count: 1,
+              per_page: 1,
+              current_page: page,
+              total_pages: 2,
+            },
+          },
+        });
+      })
+    );
+
+    const servers = await listServers('admin-all');
+
+    expect(seenPages).toEqual(['1', '2']);
+    expect(servers.map((server) => server.name)).toEqual(['Page 1', 'Page 2']);
+  });
 });
 
 describe('client.getResources', () => {

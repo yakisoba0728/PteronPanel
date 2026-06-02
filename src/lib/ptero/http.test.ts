@@ -119,4 +119,28 @@ describe('pteroFetch', () => {
 
     expect(body).toEqual({ signal: 'start' });
   });
+
+  it('backs off and retries mutations on 429', async () => {
+    let calls = 0;
+    mswServer.use(
+      http.post(`${BASE}/client/servers/1a2b3c4d/power`, () => {
+        calls += 1;
+        if (calls === 1) {
+          return new HttpResponse(null, {
+            status: 429,
+            headers: { 'Retry-After': '0' },
+          });
+        }
+
+        return new HttpResponse(null, { status: 204 });
+      })
+    );
+
+    await pteroFetch('client', '/servers/1a2b3c4d/power', {
+      method: 'POST',
+      body: { signal: 'start' },
+    });
+
+    expect(calls).toBe(2);
+  });
 });

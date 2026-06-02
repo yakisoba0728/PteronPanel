@@ -53,7 +53,7 @@ export async function pteroFetch<T = unknown>(
   const key = api === 'application' ? cfg.PTERO_APP_KEY : cfg.PTERO_CLIENT_KEY;
   const url = buildUrl(cfg.PANEL_URL, api, path, opts.query);
   const method = opts.method ?? 'GET';
-  const maxRetries = opts.retries ?? (method === 'GET' ? 2 : 0);
+  const maxRetries = opts.retries ?? 2;
   const timeoutMs = opts.timeoutMs ?? 15_000;
 
   for (let attempt = 0; ; attempt += 1) {

@@ -37,14 +37,16 @@ allowed_origins:
 
 ```bash
 docker compose up -d --build
-docker compose run --rm app pnpm db:seed
+docker compose run --rm seed
 ```
 
 - `db`: PostgreSQL 16
 - `migrate`: Prisma migrate deploy를 앱 시작 전에 1회 실행
+- `seed`: 초기 관리자와 Pterodactyl 매핑 유저를 생성할 때 수동 실행
 - `app`: Next.js standalone 런타임
 
 `APP_BASE_URL`은 실제 접속 origin과 일치해야 합니다. 리버스 프록시 뒤에 둘 경우 TLS 종료 지점의 public URL로 맞추세요.
+Docker Compose에서는 `DATABASE_URL`의 호스트가 `db`여야 합니다. 호스트 머신에서 직접 `pnpm prisma migrate dev`를 실행하는 개발 환경에서는 `.env`의 DB 호스트를 `localhost`로 바꾸세요.
 
 ## 개발
 

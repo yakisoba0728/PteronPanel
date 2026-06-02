@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ConsoleSocket, type ConsoleEvent } from './socket';
+import { CONSOLE_TOKEN_REFRESH_MS, ConsoleSocket, type ConsoleEvent } from './socket';
 
 class FakeWebSocket {
   static instances: FakeWebSocket[] = [];
+  static CONNECTING = 0;
+  static OPEN = 1;
+  static CLOSED = 3;
+  readyState = FakeWebSocket.CONNECTING;
   onopen: (() => void) | null = null;
   onmessage: ((ev: { data: string }) => void) | null = null;
   onclose: ((ev: { code: number }) => void) | null = null;
@@ -18,10 +22,12 @@ class FakeWebSocket {
   }
 
   close() {
+    this.readyState = FakeWebSocket.CLOSED;
     this.onclose?.({ code: 1000 });
   }
 
   open() {
+    this.readyState = FakeWebSocket.OPEN;
     this.onopen?.();
   }
 
@@ -53,6 +59,21 @@ describe('ConsoleSocket', () => {
     const ws = FakeWebSocket.instances.at(-1)!;
     ws.open();
     expect(JSON.parse(ws.sent[0])).toEqual({ event: 'auth', args: ['tok-1'] });
+  });
+
+  it('queues log and stats requests until the socket is open', async () => {
+    const { sock } = setup();
+    await sock.connect();
+    const ws = FakeWebSocket.instances.at(-1)!;
+    sock.requestLogs();
+    sock.requestStats();
+    expect(ws.sent).toEqual([]);
+    ws.open();
+    expect(ws.sent.map((raw) => JSON.parse(raw))).toEqual([
+      { event: 'auth', args: ['tok-1'] },
+      { event: 'send logs', args: [] },
+      { event: 'send stats', args: [] },
+    ]);
   });
 
   it('emits console + stats events', async () => {
@@ -94,6 +115,21 @@ describe('ConsoleSocket', () => {
     await vi.waitFor(() => {
       expect(JSON.parse(ws.sent.at(-1)!)).toEqual({ event: 'auth', args: ['tok-2'] });
     });
+  });
+
+  it('refreshes the token proactively', async () => {
+    vi.useFakeTimers();
+    const { sock, getCredentials } = setup();
+    await sock.connect();
+    const ws = FakeWebSocket.instances.at(-1)!;
+    ws.open();
+    getCredentials.mockResolvedValueOnce({
+      token: 'tok-2',
+      socket: 'wss://node/api/servers/uuid/ws',
+    });
+    await vi.advanceTimersByTimeAsync(CONSOLE_TOKEN_REFRESH_MS);
+    expect(JSON.parse(ws.sent.at(-1)!)).toEqual({ event: 'auth', args: ['tok-2'] });
+    vi.useRealTimers();
   });
 
   it('sends commands and power signals', async () => {

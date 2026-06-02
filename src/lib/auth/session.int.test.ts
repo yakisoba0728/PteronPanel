@@ -56,4 +56,18 @@ describe('session management (integration)', () => {
     await destroySession(token);
     expect(await validateSessionToken(token)).toBeNull();
   });
+
+  it('slides expiry and updates lastSeenAt when a token is valid', async () => {
+    const user = await makeUser();
+    const { token } = await createSession(user.id);
+    const oldLastSeenAt = new Date(Date.now() - 3_600_000);
+    const oldExpiresAt = new Date(Date.now() + 60_000);
+    await prisma.session.updateMany({
+      data: { lastSeenAt: oldLastSeenAt, expiresAt: oldExpiresAt },
+    });
+
+    const session = await validateSessionToken(token);
+    expect(session?.lastSeenAt.getTime()).toBeGreaterThan(oldLastSeenAt.getTime());
+    expect(session?.expiresAt.getTime()).toBeGreaterThan(oldExpiresAt.getTime());
+  });
 });

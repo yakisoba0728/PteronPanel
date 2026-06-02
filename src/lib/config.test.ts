@@ -19,7 +19,8 @@ describe('parseConfig', () => {
   });
 
   it('throws with a readable message when PANEL_URL is missing', () => {
-    const { PANEL_URL, ...rest } = valid;
+    const rest = { ...valid };
+    delete rest.PANEL_URL;
     expect(() => parseConfig(rest as unknown as NodeJS.ProcessEnv)).toThrow(/PANEL_URL/);
   });
 

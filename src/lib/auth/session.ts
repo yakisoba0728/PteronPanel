@@ -53,7 +53,17 @@ export async function validateSessionToken(
 
   if (!session.user.isActive) return null;
 
-  return session;
+  const now = new Date();
+  const ttlHours = getConfig().SESSION_TTL_HOURS;
+  const updated = await prisma.session.update({
+    where: { id: session.id },
+    data: {
+      lastSeenAt: now,
+      expiresAt: new Date(now.getTime() + ttlHours * 3_600_000),
+    },
+  });
+
+  return { ...updated, user: session.user };
 }
 
 export async function destroySession(token: string): Promise<void> {

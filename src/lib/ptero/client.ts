@@ -36,11 +36,20 @@ function toAccessible(attrs: ClientServerAttrs): AccessibleServer {
 export async function listServers(
   type: ClientListType = undefined
 ): Promise<AccessibleServer[]> {
-  const response = await pteroFetch<PteroList<ClientServerAttrs>>('client', '/', {
-    query: { type, per_page: 100 },
+  const first = await pteroFetch<PteroList<ClientServerAttrs>>('client', '/', {
+    query: { type, per_page: 100, page: 1 },
   });
+  const data = [...first.data];
+  const totalPages = first.meta.pagination.total_pages;
 
-  return response.data.map((server) => toAccessible(server.attributes));
+  for (let page = 2; page <= totalPages; page += 1) {
+    const next = await pteroFetch<PteroList<ClientServerAttrs>>('client', '/', {
+      query: { type, per_page: 100, page },
+    });
+    data.push(...next.data);
+  }
+
+  return data.map((server) => toAccessible(server.attributes));
 }
 
 interface StatsEnvelope {
