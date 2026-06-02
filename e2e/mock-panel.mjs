@@ -65,6 +65,27 @@ const server = createServer((req, res) => {
     );
   }
 
+  if (pathname === '/api/application/users') {
+    return json(
+      res,
+      list([
+        {
+          object: 'user',
+          attributes: {
+            id: 7,
+            uuid: 'u-7',
+            username: 'user',
+            email: 'user@example.com',
+            first_name: 'U',
+            last_name: 'Ser',
+            root_admin: false,
+            created_at: '',
+          },
+        },
+      ]),
+    );
+  }
+
   if (pathname === '/api/application/users/7') {
     return json(res, {
       object: 'user',
@@ -75,6 +96,40 @@ const server = createServer((req, res) => {
         },
       },
     });
+  }
+
+  if (pathname === '/api/application/nodes') {
+    return json(
+      res,
+      list([
+        {
+          object: 'node',
+          attributes: {
+            id: 1,
+            name: 'node-01',
+            fqdn: 'node01.example.com',
+            memory: 16384,
+            memory_overallocate: 0,
+            disk: 500000,
+            disk_overallocate: 0,
+            location_id: 1,
+            maintenance_mode: false,
+          },
+        },
+      ]),
+    );
+  }
+
+  if (pathname === '/api/application/locations') {
+    return json(
+      res,
+      list([
+        {
+          object: 'location',
+          attributes: { id: 1, short: 'kr', long: 'Korea' },
+        },
+      ]),
+    );
   }
 
   if (pathname === '/api/client' || pathname === '/api/client/') {
