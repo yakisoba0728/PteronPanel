@@ -335,6 +335,52 @@ const server = createServer(async (req, res) => {
     );
   }
 
+  if (pathname === '/api/client/servers/1a2b3c4d/schedules') {
+    return json(
+      res,
+      list([
+        {
+          object: 'server_schedule',
+          attributes: {
+            id: 10,
+            name: 'Nightly Backup',
+            cron: {
+              minute: '0',
+              hour: '4',
+              day_of_week: '*',
+              day_of_month: '*',
+              month: '*',
+            },
+            is_active: true,
+            is_processing: false,
+            only_when_online: false,
+            last_run_at: null,
+            next_run_at: null,
+            relationships: {
+              tasks: {
+                object: 'list',
+                data: [
+                  {
+                    object: 'schedule_task',
+                    attributes: {
+                      id: 1,
+                      sequence_id: 1,
+                      action: 'backup',
+                      payload: '',
+                      time_offset: 0,
+                      is_queued: false,
+                      continue_on_failure: false,
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ]),
+    );
+  }
+
   if (pathname === '/api/client/servers/1a2b3c4d/databases') {
     return json(res, {
       object: 'list',
