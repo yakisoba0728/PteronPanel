@@ -70,6 +70,7 @@ export function BackupsView({ identifier }: { identifier: string }) {
 
     const res = await deleteBackupAction(identifier, backup.uuid);
     if (res.ok) load();
+    else if (res.error === 'locked') alert('잠긴 백업은 삭제할 수 없습니다.');
     else alert(res.detail ?? '삭제 실패');
   }
 

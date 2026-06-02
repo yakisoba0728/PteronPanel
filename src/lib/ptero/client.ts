@@ -318,6 +318,18 @@ export async function listBackups(
   return data.map((item) => item.attributes);
 }
 
+export async function getBackup(
+  id: ServerIdentifier,
+  backupUuid: string,
+): Promise<BackupEntry> {
+  const response = await pteroFetch<{ attributes: BackupEntry }>(
+    'client',
+    `/servers/${id}/backups/${backupUuid}`,
+  );
+
+  return response.attributes;
+}
+
 export async function createBackup(
   id: ServerIdentifier,
   opts: { name?: string; ignored?: string; isLocked?: boolean } = {},

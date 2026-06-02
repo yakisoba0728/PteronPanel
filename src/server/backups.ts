@@ -17,7 +17,7 @@ function scope(user: User): ScopeUser {
   };
 }
 
-type Fail = { ok: false; error: 'not_found' | 'failed'; detail?: string };
+type Fail = { ok: false; error: 'not_found' | 'failed' | 'locked'; detail?: string };
 type Ok<T extends object = object> = { ok: true } & T;
 
 const noNul = (value: string) => !value.includes('\0');
@@ -173,6 +173,10 @@ export async function deleteBackupAction(
     const input = validateInput(uuidInputSchema, { identifier, uuid });
     if ('ok' in input) return input;
     const { user, id } = await guard(input.identifier);
+    const backup = await ptero.getBackup(id, input.uuid);
+    if (backup.is_locked) {
+      return { ok: false, error: 'locked' };
+    }
     await ptero.deleteBackup(id, input.uuid);
     await auditAction('backup.delete', {
       userId: user.id,
