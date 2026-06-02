@@ -24,6 +24,7 @@ const OTHER = {
 };
 
 const wsEvents = [];
+const createdServers = [];
 
 function list(data) {
   return {
@@ -46,9 +47,17 @@ function json(res, body, status = 200) {
   res.end(JSON.stringify(body));
 }
 
-const server = createServer((req, res) => {
+async function readJson(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const raw = Buffer.concat(chunks).toString('utf8');
+  return raw ? JSON.parse(raw) : {};
+}
+
+const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', 'http://127.0.0.1');
   const { pathname } = url;
+  const method = req.method;
 
   if (
     pathname === '/api/application/users' &&
@@ -65,6 +74,27 @@ const server = createServer((req, res) => {
     );
   }
 
+  if (pathname === '/api/application/users') {
+    return json(
+      res,
+      list([
+        {
+          object: 'user',
+          attributes: {
+            id: 7,
+            uuid: 'u-7',
+            username: 'user',
+            email: 'user@example.com',
+            first_name: 'U',
+            last_name: 'Ser',
+            root_admin: false,
+            created_at: '',
+          },
+        },
+      ]),
+    );
+  }
+
   if (pathname === '/api/application/users/7') {
     return json(res, {
       object: 'user',
@@ -75,6 +105,159 @@ const server = createServer((req, res) => {
         },
       },
     });
+  }
+
+  if (pathname === '/api/application/nodes') {
+    return json(
+      res,
+      list([
+        {
+          object: 'node',
+          attributes: {
+            id: 1,
+            name: 'node-01',
+            fqdn: 'node01.example.com',
+            memory: 16384,
+            memory_overallocate: 0,
+            disk: 500000,
+            disk_overallocate: 0,
+            location_id: 1,
+            maintenance_mode: false,
+          },
+        },
+      ]),
+    );
+  }
+
+  if (pathname === '/api/application/locations') {
+    return json(
+      res,
+      list([
+        {
+          object: 'location',
+          attributes: { id: 1, short: 'kr', long: 'Korea' },
+        },
+      ]),
+    );
+  }
+
+  if (pathname === '/api/application/nests') {
+    return json(
+      res,
+      list([
+        {
+          object: 'nest',
+          attributes: { id: 1, name: 'Minecraft', description: null },
+        },
+      ]),
+    );
+  }
+
+  if (pathname === '/api/application/nests/1/eggs') {
+    return json(
+      res,
+      list([
+        {
+          object: 'egg',
+          attributes: {
+            id: 5,
+            name: 'Paper',
+            docker_image: 'ghcr.io/pterodactyl/yolks:java_17',
+            startup: 'java -jar server.jar',
+          },
+        },
+      ]),
+    );
+  }
+
+  if (pathname === '/api/application/nests/1/eggs/5') {
+    return json(res, {
+      object: 'egg',
+      attributes: {
+        id: 5,
+        name: 'Paper',
+        docker_image: 'ghcr.io/pterodactyl/yolks:java_17',
+        startup: 'java -jar server.jar',
+        relationships: {
+          variables: {
+            object: 'list',
+            data: [
+              {
+                object: 'egg_variable',
+                attributes: {
+                  name: 'Version',
+                  description: '',
+                  env_variable: 'MC_VERSION',
+                  default_value: 'latest',
+                  rules: 'required|string',
+                  user_editable: true,
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+  }
+
+  if (pathname === '/api/application/servers' && method === 'POST') {
+    const body = await readJson(req);
+    const created = {
+      object: 'server',
+      attributes: {
+        id: 99 + createdServers.length,
+        uuid: `new-uuid-${createdServers.length}`,
+        identifier: `newsrv${createdServers.length}`.slice(0, 8),
+        name: body.name ?? 'E2E Server',
+        user: body.user ?? 7,
+        node: 1,
+        allocation: 1,
+        egg: body.egg ?? 5,
+        docker_image: body.docker_image,
+        startup: body.startup,
+        suspended: false,
+        limits: body.limits ?? {
+          memory: 1024,
+          swap: 0,
+          disk: 5120,
+          io: 500,
+          cpu: 100,
+        },
+        feature_limits: body.feature_limits ?? {
+          databases: 1,
+          allocations: 1,
+          backups: 1,
+        },
+      },
+    };
+    createdServers.push(created);
+    return json(res, {
+      object: 'server',
+      attributes: created.attributes,
+    });
+  }
+
+  if (pathname === '/api/application/servers') {
+    return json(
+      res,
+      list([
+        {
+          object: 'server',
+          attributes: {
+            id: 12,
+            uuid: 'u',
+            identifier: '1a2b3c4d',
+            name: 'User Server',
+            user: 7,
+            node: 1,
+            suspended: false,
+            limits: { memory: 1024, swap: 0, disk: 5120, io: 500, cpu: 100 },
+            feature_limits: { databases: 1, allocations: 1, backups: 1 },
+          },
+        },
+        ...createdServers,
+      ]),
+    );
   }
 
   if (pathname === '/api/client' || pathname === '/api/client/') {

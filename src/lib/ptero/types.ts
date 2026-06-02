@@ -94,3 +94,141 @@ export interface BackupEntry {
   created_at: string;
   completed_at: string | null;
 }
+
+export interface PteroUser {
+  id: number;
+  uuid: string;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  root_admin: boolean;
+  created_at: string;
+}
+
+export interface CreatePteroUserInput {
+  email: string;
+  username: string;
+  first_name: string;
+  last_name: string;
+  password?: string;
+  root_admin?: boolean;
+  external_id?: string;
+}
+
+export interface PteroNode {
+  id: number;
+  name: string;
+  fqdn: string;
+  memory: number;
+  memory_overallocate: number;
+  disk: number;
+  disk_overallocate: number;
+  location_id: number;
+  maintenance_mode: boolean;
+}
+
+export interface PteroLocation {
+  id: number;
+  short: string;
+  long: string | null;
+}
+
+export interface PteroNest {
+  id: number;
+  name: string;
+  description: string | null;
+}
+
+export interface PteroEggVariable {
+  name: string;
+  description: string;
+  env_variable: string;
+  default_value: string;
+  rules: string;
+  user_editable: boolean;
+}
+
+export interface PteroEgg {
+  id: number;
+  name: string;
+  docker_image: string;
+  startup: string;
+  variables?: PteroEggVariable[];
+}
+
+export interface PteroServer {
+  id: number;
+  uuid: string;
+  identifier: string;
+  name: string;
+  user: number;
+  node: number;
+  allocation?: number;
+  egg?: number;
+  docker_image?: string;
+  startup?: string;
+  suspended: boolean;
+  limits: {
+    memory: number;
+    swap: number;
+    disk: number;
+    io: number;
+    cpu: number;
+  };
+  feature_limits: {
+    databases: number;
+    allocations: number;
+    backups: number;
+  };
+}
+
+export interface CreateServerInput {
+  name: string;
+  user: number;
+  egg: number;
+  docker_image: string;
+  startup: string;
+  environment: Record<string, string>;
+  limits: {
+    memory: number;
+    swap: number;
+    disk: number;
+    io: number;
+    cpu: number;
+  };
+  feature_limits: {
+    databases: number;
+    allocations: number;
+    backups: number;
+  };
+  deploy?: {
+    locations: number[];
+    dedicated_ip: boolean;
+    port_range: string[];
+  };
+  allocation?: { default: number; additional?: number[] };
+  start_on_completion?: boolean;
+}
+
+export interface UpdateServerBuildInput {
+  allocation?: number;
+  memory: number;
+  swap: number;
+  disk: number;
+  io: number;
+  cpu: number;
+  feature_limits: {
+    databases: number;
+    allocations: number;
+    backups: number;
+  };
+}
+
+export interface UpdateServerStartupInput {
+  startup: string;
+  egg: number;
+  image: string;
+  environment: Record<string, string>;
+  skip_scripts?: boolean;
+}
