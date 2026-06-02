@@ -307,7 +307,7 @@ export interface ScheduleInput {
   day_of_month: string;
   month: string;
   day_of_week: string;
-  is_active?: boolean;
+  is_active: boolean;
   only_when_online?: boolean;
 }
 

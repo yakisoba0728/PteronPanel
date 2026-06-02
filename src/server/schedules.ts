@@ -54,7 +54,7 @@ function toFail(err: unknown): Fail {
   return { ok: false, error: 'failed', detail };
 }
 
-const cronField = z.string().min(1).max(8);
+const cronField = z.string().min(1).max(64);
 const scheduleSchema = z.object({
   name: z.string().min(1).max(191),
   minute: cronField,
@@ -62,7 +62,7 @@ const scheduleSchema = z.object({
   day_of_month: cronField,
   month: cronField,
   day_of_week: cronField,
-  is_active: z.boolean().optional(),
+  is_active: z.boolean(),
   only_when_online: z.boolean().optional(),
 });
 const taskSchema = z.object({
