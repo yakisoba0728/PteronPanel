@@ -26,6 +26,20 @@ test('USER sees startup variable', async ({ page }) => {
   await expect(page.getByText('MC_VERSION')).toBeVisible();
 });
 
+test('USER sees settings controls', async ({ page }) => {
+  await login(page, 'user', 'user-pass');
+  await page.goto('/servers/1a2b3c4d/settings');
+  await expect(page.getByText('서버 이름')).toBeVisible();
+  await expect(page.getByText('Docker 이미지')).toBeVisible();
+  await expect(page.getByRole('button', { name: '서버 재설치' })).toBeVisible();
+});
+
+test('USER sees activity log', async ({ page }) => {
+  await login(page, 'user', 'user-pass');
+  await page.goto('/servers/1a2b3c4d/activity');
+  await expect(page.getByText('server:console.command')).toBeVisible();
+});
+
 test('detail tab on non-owned server is 404', async ({ page }) => {
   await login(page, 'user', 'user-pass');
   const response = await page.goto('/servers/9z9z9z9z/databases');

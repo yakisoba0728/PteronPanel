@@ -95,4 +95,18 @@ describe('client databases', () => {
     await deleteDatabase(id, 'HASH1');
     expect(called).toBe(true);
   });
+
+  it('encodes database path ids before building URLs', async () => {
+    let pathname = '';
+    mswServer.use(
+      http.delete('*', ({ request }) => {
+        pathname = new URL(request.url).pathname;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await deleteDatabase(id, '..');
+
+    expect(pathname).toBe('/api/client/servers/1a2b3c4d/databases/%252E%252E');
+  });
 });

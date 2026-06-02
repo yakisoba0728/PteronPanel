@@ -19,7 +19,13 @@ vi.mock('@/lib/audit', () => ({
   audit,
 }));
 
-import { renameServerAction } from './settings';
+import { listActivityAction } from './activity';
+import {
+  reinstallServerAction,
+  renameServerAction,
+  setDockerImageAction,
+} from './settings';
+import { getStartupAction, updateStartupVariableAction } from './startup';
 
 const CLIENT = 'https://panel.test/api/client';
 
@@ -81,5 +87,19 @@ describe('renameServerAction', () => {
       ok: false,
       error: 'not_found',
     });
+  });
+});
+
+describe('startup/settings/activity action guards', () => {
+  it.each([
+    ['startup list', () => getStartupAction('deadbeef')],
+    ['startup update', () => updateStartupVariableAction('deadbeef', 'VERSION', '1.21')],
+    ['settings reinstall', () => reinstallServerAction('deadbeef')],
+    ['settings docker image', () => setDockerImageAction('deadbeef', 'img:2')],
+    ['activity list', () => listActivityAction('deadbeef')],
+  ])('returns not_found for inaccessible %s', async (_name, action) => {
+    adminLists('1a2b3c4d');
+
+    expect(await action()).toEqual({ ok: false, error: 'not_found' });
   });
 });

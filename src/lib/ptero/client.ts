@@ -39,6 +39,10 @@ function toAccessible(attrs: ClientServerAttrs): AccessibleServer {
   };
 }
 
+function pathSegment(value: string | number): string {
+  return encodeURIComponent(String(value)).replace(/\./g, '%252E');
+}
+
 export async function listServers(
   type: ClientListType = undefined
 ): Promise<AccessibleServer[]> {
@@ -328,7 +332,7 @@ export async function getBackup(
 ): Promise<BackupEntry> {
   const response = await pteroFetch<{ attributes: BackupEntry }>(
     'client',
-    `/servers/${id}/backups/${backupUuid}`,
+    `/servers/${id}/backups/${pathSegment(backupUuid)}`,
   );
 
   return response.attributes;
@@ -360,7 +364,7 @@ export async function getBackupDownloadUrl(
 ): Promise<string> {
   const response = await pteroFetch<SignedUrl>(
     'client',
-    `/servers/${id}/backups/${backupUuid}/download`,
+    `/servers/${id}/backups/${pathSegment(backupUuid)}/download`,
   );
 
   return response.attributes.url;
@@ -372,7 +376,7 @@ export async function toggleBackupLock(
 ): Promise<BackupEntry> {
   const response = await pteroFetch<{ attributes: BackupEntry }>(
     'client',
-    `/servers/${id}/backups/${backupUuid}/lock`,
+    `/servers/${id}/backups/${pathSegment(backupUuid)}/lock`,
     { method: 'POST' },
   );
 
@@ -384,19 +388,27 @@ export async function restoreBackup(
   backupUuid: string,
   truncate = false,
 ): Promise<void> {
-  await pteroFetch('client', `/servers/${id}/backups/${backupUuid}/restore`, {
-    method: 'POST',
-    body: { truncate },
-  });
+  await pteroFetch(
+    'client',
+    `/servers/${id}/backups/${pathSegment(backupUuid)}/restore`,
+    {
+      method: 'POST',
+      body: { truncate },
+    },
+  );
 }
 
 export async function deleteBackup(
   id: ServerIdentifier,
   backupUuid: string,
 ): Promise<void> {
-  await pteroFetch('client', `/servers/${id}/backups/${backupUuid}`, {
-    method: 'DELETE',
-  });
+  await pteroFetch(
+    'client',
+    `/servers/${id}/backups/${pathSegment(backupUuid)}`,
+    {
+      method: 'DELETE',
+    },
+  );
 }
 
 interface DbAttrs {
@@ -454,7 +466,7 @@ export async function rotateDatabasePassword(
 ): Promise<ServerDatabase> {
   const response = await pteroFetch<PteroItem<DbAttrs>>(
     'client',
-    `/servers/${id}/databases/${dbId}/rotate-password`,
+    `/servers/${id}/databases/${pathSegment(dbId)}/rotate-password`,
     { method: 'POST' },
   );
 
@@ -465,9 +477,13 @@ export async function deleteDatabase(
   id: ServerIdentifier,
   dbId: string,
 ): Promise<void> {
-  await pteroFetch('client', `/servers/${id}/databases/${dbId}`, {
-    method: 'DELETE',
-  });
+  await pteroFetch(
+    'client',
+    `/servers/${id}/databases/${pathSegment(dbId)}`,
+    {
+      method: 'DELETE',
+    },
+  );
 }
 
 export async function listAllocations(
@@ -500,7 +516,7 @@ export async function setAllocationNote(
 ): Promise<ServerAllocation> {
   const response = await pteroFetch<PteroItem<ServerAllocation>>(
     'client',
-    `/servers/${id}/network/allocations/${allocId}`,
+    `/servers/${id}/network/allocations/${pathSegment(allocId)}`,
     { method: 'POST', body: { notes } },
   );
 
@@ -513,7 +529,7 @@ export async function setPrimaryAllocation(
 ): Promise<ServerAllocation> {
   const response = await pteroFetch<PteroItem<ServerAllocation>>(
     'client',
-    `/servers/${id}/network/allocations/${allocId}/primary`,
+    `/servers/${id}/network/allocations/${pathSegment(allocId)}/primary`,
     { method: 'POST' },
   );
 
@@ -524,9 +540,13 @@ export async function deleteAllocation(
   id: ServerIdentifier,
   allocId: number,
 ): Promise<void> {
-  await pteroFetch('client', `/servers/${id}/network/allocations/${allocId}`, {
-    method: 'DELETE',
-  });
+  await pteroFetch(
+    'client',
+    `/servers/${id}/network/allocations/${pathSegment(allocId)}`,
+    {
+      method: 'DELETE',
+    },
+  );
 }
 
 export async function getStartupVariables(

@@ -80,4 +80,20 @@ describe('client network', () => {
     await deleteAllocation(id, 2);
     expect([primary, deleted]).toEqual([true, true]);
   });
+
+  it('encodes allocation path ids before building URLs', async () => {
+    let pathname = '';
+    mswServer.use(
+      http.delete('*', ({ request }) => {
+        pathname = new URL(request.url).pathname;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await deleteAllocation(id, '..' as unknown as number);
+
+    expect(pathname).toBe(
+      '/api/client/servers/1a2b3c4d/network/allocations/%252E%252E',
+    );
+  });
 });

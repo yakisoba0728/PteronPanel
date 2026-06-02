@@ -19,7 +19,12 @@ vi.mock('@/lib/audit', () => ({
   audit,
 }));
 
-import { listDatabasesAction } from './databases';
+import {
+  createDatabaseAction,
+  deleteDatabaseAction,
+  listDatabasesAction,
+  rotateDatabasePasswordAction,
+} from './databases';
 
 const CLIENT = 'https://panel.test/api/client';
 
@@ -90,5 +95,49 @@ describe('listDatabasesAction', () => {
       ok: false,
       error: 'not_found',
     });
+  });
+});
+
+describe('database mutation guards', () => {
+  it.each([
+    ['create', () => createDatabaseAction('deadbeef', 'db', '%')],
+    ['rotate', () => rotateDatabasePasswordAction('deadbeef', 'H1')],
+    ['delete', () => deleteDatabaseAction('deadbeef', 'H1')],
+  ])('returns not_found for inaccessible %s', async (_name, action) => {
+    adminLists('1a2b3c4d');
+
+    expect(await action()).toEqual({ ok: false, error: 'not_found' });
+  });
+
+  it('rejects traversal in database ids before an upstream path can change servers', async () => {
+    adminLists('1a2b3c4d');
+    let crossedServerBoundary = false;
+    mswServer.use(
+      http.post(
+        `${CLIENT}/servers/deadbeef/network/allocations/1/rotate-password`,
+        () => {
+          crossedServerBoundary = true;
+          return HttpResponse.json({
+            object: 'server_database',
+            attributes: {
+              id: 'H1',
+              name: 'db',
+              username: 'u',
+              host: { address: 'h', port: 3306 },
+              connections_from: '%',
+              max_connections: 0,
+            },
+          });
+        },
+      ),
+    );
+
+    const res = await rotateDatabasePasswordAction(
+      '1a2b3c4d',
+      '../../deadbeef/network/allocations/1',
+    );
+
+    expect(res).toMatchObject({ ok: false, error: 'failed' });
+    expect(crossedServerBoundary).toBe(false);
   });
 });
