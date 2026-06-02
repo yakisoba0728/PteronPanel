@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { mswServer } from '@/test/msw/server';
 import { getOwnedServers, paginateAll } from './application';
@@ -43,6 +43,52 @@ describe('application.getOwnedServers', () => {
       name: 'Alpha',
       numericId: 12,
     });
+  });
+
+  it('skips rows that fail validation instead of throwing the whole list', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mswServer.use(
+      http.get(`${BASE}/users/7`, () =>
+        HttpResponse.json({
+          object: 'user',
+          attributes: {
+            id: 7,
+            relationships: {
+              servers: {
+                object: 'list',
+                data: [
+                  {
+                    object: 'server',
+                    attributes: {
+                      id: 11,
+                      // invalid: identifier length !== 8
+                      identifier: 'bad',
+                      uuid: '11111111-0000-4000-8000-000000000000',
+                      name: 'Broken',
+                    },
+                  },
+                  {
+                    object: 'server',
+                    attributes: {
+                      id: 12,
+                      identifier: '1a2b3c4d',
+                      uuid: '1a2b3c4d-5e6f-7081-9234-567890abcdef',
+                      name: 'Good',
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        })
+      )
+    );
+
+    const servers = await getOwnedServers(7);
+
+    expect(servers.map((server) => server.name)).toEqual(['Good']);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
 
