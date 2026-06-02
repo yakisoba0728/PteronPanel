@@ -25,6 +25,7 @@ model User {
   updatedAt    DateTime  @updatedAt
   sessions     Session[]
   auditLogs    AuditLog[]
+  plugins      Plugin[]
 }
 
 model Session {
@@ -52,6 +53,40 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+model Plugin {
+  id               String            @id @default(cuid())
+  ownerId          String
+  owner            User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name             String
+  description      String?
+  tokenHash        String            @unique
+  webhookUrl       String?
+  webhookSecretEnc String?
+  events           String[]          @default([])
+  uiTabUrl         String?
+  uiTabLabel       String?
+  enabled          Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  deliveries       WebhookDelivery[]
+
+  @@index([ownerId])
+}
+
+model WebhookDelivery {
+  id           String   @id @default(cuid())
+  pluginId     String
+  plugin       Plugin   @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+  event        String
+  status       String   @default("pending")
+  attempts     Int      @default(0)
+  responseCode Int?
+  error        String?
+  createdAt    DateTime @default(now())
+
+  @@index([pluginId, createdAt])
 }
 
 model ServerAccess {
