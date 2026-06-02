@@ -23,6 +23,17 @@ const OTHER = {
   },
 };
 
+const SHARED = {
+  object: 'server',
+  attributes: {
+    id: 14,
+    identifier: '5e5e5e5e',
+    uuid: '5e5e5e5e-0000-4000-8000-000000000000',
+    name: 'Shared Server',
+    node: 'Node 03',
+  },
+};
+
 const wsEvents = [];
 const createdServers = [];
 
@@ -262,7 +273,7 @@ const server = createServer(async (req, res) => {
 
   if (pathname === '/api/client' || pathname === '/api/client/') {
     if (url.searchParams.get('type') === 'admin-all') {
-      return json(res, list([OWNED, OTHER]));
+      return json(res, list([OWNED, OTHER, SHARED]));
     }
 
     return json(res, list([OWNED]));
@@ -333,6 +344,104 @@ const server = createServer(async (req, res) => {
         },
       ]),
     );
+  }
+
+  if (pathname === '/api/client/servers/1a2b3c4d/schedules') {
+    return json(
+      res,
+      list([
+        {
+          object: 'server_schedule',
+          attributes: {
+            id: 10,
+            name: 'Nightly Backup',
+            cron: {
+              minute: '0',
+              hour: '4',
+              day_of_week: '*',
+              day_of_month: '*',
+              month: '*',
+            },
+            is_active: true,
+            is_processing: false,
+            only_when_online: false,
+            last_run_at: null,
+            next_run_at: null,
+            relationships: {
+              tasks: {
+                object: 'list',
+                data: [
+                  {
+                    object: 'schedule_task',
+                    attributes: {
+                      id: 1,
+                      sequence_id: 1,
+                      action: 'backup',
+                      payload: '',
+                      time_offset: 0,
+                      is_queued: false,
+                      continue_on_failure: false,
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ]),
+    );
+  }
+
+  if (pathname === '/api/client/servers/1a2b3c4d/users' && method === 'GET') {
+    return json(
+      res,
+      list([
+        {
+          object: 'server_subuser',
+          attributes: {
+            uuid: 'helper-uuid',
+            username: 'helper',
+            email: 'helper@example.com',
+            image: '',
+            permissions: ['control.console', 'file.read'],
+          },
+        },
+      ]),
+    );
+  }
+
+  if (pathname === '/api/client/servers/9z9z9z9z/users' && method === 'GET') {
+    return json(res, list([]));
+  }
+
+  if (pathname === '/api/client/servers/5e5e5e5e/users' && method === 'GET') {
+    return json(
+      res,
+      list([
+        {
+          object: 'server_subuser',
+          attributes: {
+            uuid: 'u-7',
+            username: 'user',
+            email: 'user@example.com',
+            image: '',
+            permissions: ['control.console'],
+          },
+        },
+      ]),
+    );
+  }
+
+  if (pathname === '/api/client/permissions') {
+    return json(res, {
+      object: 'system_permissions',
+      attributes: {
+        permissions: {
+          control: { description: '', keys: { console: '', start: '', stop: '' } },
+          file: { description: '', keys: { read: '', create: '' } },
+        },
+      },
+    });
   }
 
   if (pathname === '/api/client/servers/1a2b3c4d/databases') {

@@ -3,7 +3,11 @@
 import type { User } from '@prisma/client';
 import { audit } from '@/lib/audit';
 import { requireUser } from '@/lib/auth/current-user';
-import { requireServerAccess, ServerAccessDeniedError } from '@/lib/authz/guard';
+import {
+  requireServerAccess,
+  requireServerPermission,
+  ServerAccessDeniedError,
+} from '@/lib/authz/guard';
 import { resolveAccessibleServers, type ScopeUser } from '@/lib/authz/access';
 import { getServer, powerServer } from '@/lib/ptero/client';
 import { PteroApiError } from '@/lib/ptero/errors';
@@ -51,7 +55,13 @@ export async function powerServerAction(
 
   try {
     const id = asIdentifier(identifier);
-    await requireServerAccess(scope(user), id);
+    const permission =
+      signal === 'start'
+        ? 'control.start'
+        : signal === 'restart'
+          ? 'control.restart'
+          : 'control.stop';
+    await requireServerPermission(scope(user), id, permission);
     await powerServer(id, signal);
     await audit('server.power', {
       userId: user.id,

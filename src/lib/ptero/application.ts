@@ -39,6 +39,7 @@ function toAccessible(attrs: AppServerAttrs): AccessibleServer {
     uuid: asUuid(attrs.uuid),
     numericId: asNumericId(attrs.id),
     name: attrs.name,
+    accessKind: 'owner',
   };
 }
 

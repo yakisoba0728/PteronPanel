@@ -4,7 +4,7 @@ import type { Prisma, User } from '@prisma/client';
 import { z, type ZodError, type ZodType } from 'zod';
 import { requireUser } from '@/lib/auth/current-user';
 import type { ScopeUser } from '@/lib/authz/access';
-import { requireServerAccess, ServerAccessDeniedError } from '@/lib/authz/guard';
+import { requireServerPermission, ServerAccessDeniedError } from '@/lib/authz/guard';
 import * as ptero from '@/lib/ptero/client';
 import { PteroApiError } from '@/lib/ptero/errors';
 import { asIdentifier } from '@/lib/ptero/types';
@@ -47,10 +47,10 @@ const dockerImageInputSchema = z.object({
   dockerImage: dockerImageSchema,
 });
 
-async function guard(identifier: string) {
+async function guard(identifier: string, permission: string) {
   const user = await requireUser();
   const id = asIdentifier(identifier);
-  await requireServerAccess(scope(user), id);
+  await requireServerPermission(scope(user), id, permission);
   return { user, id };
 }
 
@@ -101,7 +101,7 @@ export async function renameServerAction(
       description,
     });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'settings.rename');
     await ptero.renameServer(id, input.name, input.description);
     await auditAction('settings.rename', {
       userId: user.id,
@@ -120,7 +120,7 @@ export async function reinstallServerAction(
   try {
     const input = validateInput(identifierInputSchema, { identifier });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'settings.reinstall');
     await ptero.reinstallServer(id);
     await auditAction('settings.reinstall', {
       userId: user.id,
@@ -142,7 +142,7 @@ export async function setDockerImageAction(
       dockerImage,
     });
     if ('ok' in input) return input;
-    const { user, id } = await guard(input.identifier);
+    const { user, id } = await guard(input.identifier, 'startup.docker-image');
     await ptero.setDockerImage(id, input.dockerImage);
     await auditAction('settings.docker_image', {
       userId: user.id,

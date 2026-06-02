@@ -10,11 +10,16 @@ import {
   type PowerSignal,
   type PteroItem,
   type PteroList,
+  type ScheduleInput,
+  type ScheduleTask,
   type ServerAllocation,
   type ServerDatabase,
   type ServerIdentifier,
   type ServerResources,
+  type ServerSchedule,
   type StartupVariable,
+  type Subuser,
+  type TaskInput,
   type WebsocketCredentials,
 } from './types';
 
@@ -36,6 +41,7 @@ function toAccessible(attrs: ClientServerAttrs): AccessibleServer {
       attrs.internal_id !== undefined ? asNumericId(attrs.internal_id) : undefined,
     name: attrs.name,
     node: attrs.node,
+    accessKind: 'admin',
   };
 }
 
@@ -409,6 +415,221 @@ export async function deleteBackup(
       method: 'DELETE',
     },
   );
+}
+
+interface SchedAttrs {
+  id: number;
+  name: string;
+  cron: ServerSchedule['cron'];
+  is_active: boolean;
+  is_processing: boolean;
+  only_when_online: boolean;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  relationships?: { tasks?: { data: { attributes: ScheduleTask }[] } };
+}
+
+function mapSchedule(attrs: SchedAttrs): ServerSchedule {
+  return {
+    id: attrs.id,
+    name: attrs.name,
+    cron: attrs.cron,
+    is_active: attrs.is_active,
+    is_processing: attrs.is_processing,
+    only_when_online: attrs.only_when_online,
+    last_run_at: attrs.last_run_at,
+    next_run_at: attrs.next_run_at,
+    tasks: (attrs.relationships?.tasks?.data ?? []).map((task) => task.attributes),
+  };
+}
+
+export async function listSchedules(
+  id: ServerIdentifier,
+): Promise<ServerSchedule[]> {
+  const first = await pteroFetch<PteroList<SchedAttrs>>(
+    'client',
+    `/servers/${id}/schedules`,
+    { query: { include: 'tasks', per_page: 50, page: 1 } },
+  );
+  const data = [...first.data];
+  const totalPages = first.meta?.pagination?.total_pages ?? 1;
+
+  for (let page = 2; page <= totalPages; page += 1) {
+    const next = await pteroFetch<PteroList<SchedAttrs>>(
+      'client',
+      `/servers/${id}/schedules`,
+      { query: { include: 'tasks', per_page: 50, page } },
+    );
+    data.push(...next.data);
+  }
+
+  return data.map((item) => mapSchedule(item.attributes));
+}
+
+export async function createSchedule(
+  id: ServerIdentifier,
+  input: ScheduleInput,
+): Promise<ServerSchedule> {
+  const response = await pteroFetch<PteroItem<SchedAttrs>>(
+    'client',
+    `/servers/${id}/schedules`,
+    { method: 'POST', body: input },
+  );
+
+  return mapSchedule(response.attributes);
+}
+
+export async function updateSchedule(
+  id: ServerIdentifier,
+  schedId: number,
+  input: ScheduleInput,
+): Promise<ServerSchedule> {
+  const response = await pteroFetch<PteroItem<SchedAttrs>>(
+    'client',
+    `/servers/${id}/schedules/${pathSegment(schedId)}`,
+    { method: 'POST', body: input },
+  );
+
+  return mapSchedule(response.attributes);
+}
+
+export async function deleteSchedule(
+  id: ServerIdentifier,
+  schedId: number,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/schedules/${pathSegment(schedId)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function executeSchedule(
+  id: ServerIdentifier,
+  schedId: number,
+): Promise<void> {
+  await pteroFetch(
+    'client',
+    `/servers/${id}/schedules/${pathSegment(schedId)}/execute`,
+    { method: 'POST' },
+  );
+}
+
+export async function createTask(
+  id: ServerIdentifier,
+  schedId: number,
+  input: TaskInput,
+): Promise<ScheduleTask> {
+  const response = await pteroFetch<PteroItem<ScheduleTask>>(
+    'client',
+    `/servers/${id}/schedules/${pathSegment(schedId)}/tasks`,
+    { method: 'POST', body: input },
+  );
+
+  return response.attributes;
+}
+
+export async function updateTask(
+  id: ServerIdentifier,
+  schedId: number,
+  taskId: number,
+  input: TaskInput,
+): Promise<ScheduleTask> {
+  const response = await pteroFetch<PteroItem<ScheduleTask>>(
+    'client',
+    `/servers/${id}/schedules/${pathSegment(schedId)}/tasks/${pathSegment(taskId)}`,
+    { method: 'POST', body: input },
+  );
+
+  return response.attributes;
+}
+
+export async function deleteTask(
+  id: ServerIdentifier,
+  schedId: number,
+  taskId: number,
+): Promise<void> {
+  await pteroFetch(
+    'client',
+    `/servers/${id}/schedules/${pathSegment(schedId)}/tasks/${pathSegment(taskId)}`,
+    { method: 'DELETE' },
+  );
+}
+
+export async function listSubusers(id: ServerIdentifier): Promise<Subuser[]> {
+  const first = await pteroFetch<PteroList<Subuser>>(
+    'client',
+    `/servers/${id}/users`,
+    { query: { per_page: 50, page: 1 } },
+  );
+  const data = [...first.data];
+  const totalPages = first.meta?.pagination?.total_pages ?? 1;
+
+  for (let page = 2; page <= totalPages; page += 1) {
+    const next = await pteroFetch<PteroList<Subuser>>(
+      'client',
+      `/servers/${id}/users`,
+      { query: { per_page: 50, page } },
+    );
+    data.push(...next.data);
+  }
+
+  return data.map((item) => item.attributes);
+}
+
+export async function createSubuser(
+  id: ServerIdentifier,
+  email: string,
+  permissions: string[],
+): Promise<Subuser> {
+  const response = await pteroFetch<PteroItem<Subuser>>(
+    'client',
+    `/servers/${id}/users`,
+    { method: 'POST', body: { email, permissions } },
+  );
+
+  return response.attributes;
+}
+
+export async function updateSubuser(
+  id: ServerIdentifier,
+  subuserUuid: string,
+  permissions: string[],
+): Promise<Subuser> {
+  const response = await pteroFetch<PteroItem<Subuser>>(
+    'client',
+    `/servers/${id}/users/${pathSegment(subuserUuid)}`,
+    { method: 'POST', body: { permissions } },
+  );
+
+  return response.attributes;
+}
+
+export async function deleteSubuser(
+  id: ServerIdentifier,
+  subuserUuid: string,
+): Promise<void> {
+  await pteroFetch('client', `/servers/${id}/users/${pathSegment(subuserUuid)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function listPermissionKeys(): Promise<string[]> {
+  const response = await pteroFetch<{
+    attributes: {
+      permissions: Record<string, { keys: Record<string, string> }>;
+    };
+  }>('client', '/permissions');
+  const keys: string[] = [];
+
+  for (const [group, definition] of Object.entries(
+    response.attributes.permissions,
+  )) {
+    if (group === 'websocket') continue;
+    for (const key of Object.keys(definition.keys)) {
+      keys.push(`${group}.${key}`);
+    }
+  }
+
+  return keys;
 }
 
 interface DbAttrs {

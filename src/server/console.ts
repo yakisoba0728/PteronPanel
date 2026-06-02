@@ -2,7 +2,7 @@
 
 import { notFound } from 'next/navigation';
 import { requireUser } from '@/lib/auth/current-user';
-import { requireServerAccess } from '@/lib/authz/guard';
+import { requireServerPermission } from '@/lib/authz/guard';
 import { getWebsocketCredentials } from '@/lib/ptero/client';
 import { asIdentifier, type WebsocketCredentials } from '@/lib/ptero/types';
 
@@ -13,9 +13,10 @@ export async function getConsoleCredentials(
   const id = asIdentifier(identifier);
 
   try {
-    await requireServerAccess(
+    await requireServerPermission(
       { id: user.id, role: user.role, pteroUserId: user.pteroUserId },
       id,
+      'control.console',
     );
   } catch {
     notFound();
