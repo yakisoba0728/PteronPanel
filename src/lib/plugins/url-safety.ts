@@ -1,5 +1,6 @@
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { Agent } from 'undici';
 
 function localWebhooksAllowed(): boolean {
   return process.env.PTERON_ALLOW_LOCAL_WEBHOOKS === '1';
@@ -26,17 +27,95 @@ export function validatePluginUiUrl(raw: string): URL | null {
   return url.protocol === 'https:' ? url : null;
 }
 
-export async function assertSafeWebhookUrl(raw: string): Promise<URL> {
+interface ResolvedTarget {
+  url: URL;
+  /** Validated IPs to pin the connection to. Empty for literal-IP hosts. */
+  pinned: { address: string; family: 4 | 6 }[];
+}
+
+/**
+ * Validate a webhook URL: enforce scheme, reject literal blocked IPs, and for
+ * hostnames resolve DNS once and require EVERY resolved address to pass the
+ * blocklist. Returns the validated addresses so the caller can pin the
+ * connection (closing the DNS-rebind window). Throws on any unsafe target.
+ */
+async function resolveSafeWebhookTarget(raw: string): Promise<ResolvedTarget> {
   const url = validateExternalHttpUrl(raw);
   if (!url) throw new Error('Unsafe webhook URL');
-  if (localWebhooksAllowed()) return url;
+  if (localWebhooksAllowed()) return { url, pinned: [] };
 
-  if (isIP(url.hostname)) return url;
+  // Literal-IP hosts were already checked by validateExternalHttpUrl above, and
+  // there is no name to rebind, so no pinning is required.
+  if (isIP(url.hostname)) return { url, pinned: [] };
+
   const addresses = await lookup(url.hostname, { all: true });
+  if (addresses.length === 0) throw new Error('Unsafe webhook URL');
   if (addresses.some((address) => isBlockedHost(address.address))) {
     throw new Error('Unsafe webhook URL');
   }
-  return url;
+  return {
+    url,
+    pinned: addresses.map((a) => ({
+      address: a.address,
+      family: a.family === 6 ? 6 : 4,
+    })),
+  };
+}
+
+export async function assertSafeWebhookUrl(raw: string): Promise<URL> {
+  return (await resolveSafeWebhookTarget(raw)).url;
+}
+
+/**
+ * Fetch a webhook URL with the validated IP pinned at connection time.
+ *
+ * `assertSafeWebhookUrl`/validateExternalHttpUrl validate the hostname, but a
+ * plain `fetch(url)` re-resolves DNS — opening a rebind window where the name
+ * can point at a freshly-validated public IP and then flip to loopback/private
+ * before the socket connects. To close that window we resolve + validate ONCE
+ * and pin the connection to the validated IP via an undici Agent whose
+ * `connect.lookup` short-circuits resolution, while keeping the original
+ * hostname for TLS SNI and the Host header.
+ */
+export async function safeFetch(
+  url: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const target = await resolveSafeWebhookTarget(url);
+
+  // Literal IP or local-dev escape hatch: nothing to pin, just fetch.
+  if (target.pinned.length === 0) {
+    return fetch(target.url, init);
+  }
+
+  const pinned = target.pinned;
+  const dispatcher = new Agent({
+    connect: {
+      // undici calls this in place of dns.lookup; return only the validated
+      // addresses so the socket can never connect to a rebound IP.
+      lookup: (
+        _hostname: string,
+        _options: unknown,
+        callback: (
+          err: NodeJS.ErrnoException | null,
+          addresses: { address: string; family: number }[],
+        ) => void,
+      ) => {
+        callback(null, pinned);
+      },
+    },
+  });
+
+  try {
+    // Cast: RequestInit does not declare undici's `dispatcher`, but the global
+    // fetch (undici under the hood) honors it.
+    return await fetch(target.url, {
+      ...init,
+      dispatcher,
+    } as RequestInit & { dispatcher: Agent });
+  } finally {
+    await dispatcher.close().catch(() => {});
+  }
 }
 
 function isBlockedHost(host: string): boolean {
