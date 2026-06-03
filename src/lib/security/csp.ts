@@ -27,6 +27,9 @@ export function pluginIdFromPath(pathname: string): string | null {
 /**
  * Build the frame-only CSP. With a resolved plugin origin, allow framing it
  * (plus self); otherwise deny all framing.
+ *
+ * `pluginOrigin` is interpolated verbatim, so callers MUST pass a sanitized
+ * `scheme://host[:port]` token (see getEnabledPluginUiOrigin) — never raw input.
  */
 export function buildFrameCsp(pluginOrigin: string | null): string {
   if (!pluginOrigin) return FRAME_CSP_BASELINE;
