@@ -7,7 +7,6 @@ import '@xterm/xterm/css/xterm.css';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { getConsoleCredentials } from '@/server/console';
 import type { AccessKind } from '@/lib/authz/visible-tabs';
 import type { PowerSignal } from '@/lib/ptero/types';
 import { consoleControls, type ConsoleControls } from './console-perms';
@@ -25,10 +24,7 @@ const powerActions: Array<{
   { signal: 'kill', label: '강제종료', variant: 'danger', control: 'canKill' },
 ];
 
-// UI mitigation: subusers only see the power buttons / command input their
-// permissions allow. This is NOT a real security boundary — a subuser with a
-// websocket token can still drive Wings directly, so server-side enforcement
-// (a console WS proxy) is tracked separately.
+// UX gating mirrors the server-side console proxy enforcement.
 export function ConsoleView({
   identifier,
   accessKind,
@@ -64,7 +60,7 @@ export function ConsoleView({
     termInstance.current = term;
 
     const sock = new ConsoleSocket({
-      getCredentials: () => getConsoleCredentials(identifier),
+      identifier,
       onEvent: (event) => {
         switch (event.type) {
           case 'console':

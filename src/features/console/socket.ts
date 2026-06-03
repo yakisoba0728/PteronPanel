@@ -1,4 +1,4 @@
-import type { PowerSignal, WebsocketCredentials } from '@/lib/ptero/types';
+import type { PowerSignal } from '@/lib/ptero/types';
 
 export interface ConsoleStats {
   memory_bytes: number;
@@ -25,12 +25,12 @@ interface WingsMessage {
 
 type WsCtor = { new (url: string): WebSocket };
 const WS_OPEN = 1;
-export const CONSOLE_TOKEN_REFRESH_MS = 7 * 60_000;
 
 export interface ConsoleSocketDeps {
-  getCredentials: () => Promise<WebsocketCredentials>;
+  identifier: string;
   onEvent: (event: ConsoleEvent) => void;
   WebSocketImpl?: WsCtor;
+  location?: Pick<Location, 'protocol' | 'host'>;
 }
 
 export class ConsoleSocket {
@@ -38,7 +38,6 @@ export class ConsoleSocket {
   private closedByUser = false;
   private reconnectAttempts = 0;
   private queue: string[] = [];
-  private tokenRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly WS: WsCtor;
 
   constructor(private readonly deps: ConsoleSocketDeps) {
@@ -46,23 +45,19 @@ export class ConsoleSocket {
   }
 
   async connect(): Promise<void> {
-    this.clearTokenRefreshTimer();
     // Tear down any existing socket before opening a new one. Detaching the
     // handlers (and closing) prevents a late onclose/onmessage/onerror from the
     // old, now-orphaned socket from racing the new one (e.g. scheduling a second
     // reconnect or a duplicate token-refresh timer).
     this.teardownSocket();
 
-    const creds = await this.deps.getCredentials();
-    const ws = new this.WS(creds.socket);
+    const ws = new this.WS(this.proxyUrl());
     this.ws = ws;
 
     ws.onopen = () => {
       if (ws !== this.ws) return;
       this.reconnectAttempts = 0;
-      this.send('auth', [creds.token]);
       this.flushQueue();
-      this.scheduleTokenRefresh();
       this.deps.onEvent({ type: 'open' });
     };
     ws.onmessage = (event: MessageEvent) => {
@@ -97,8 +92,13 @@ export class ConsoleSocket {
 
   close(): void {
     this.closedByUser = true;
-    this.clearTokenRefreshTimer();
     this.teardownSocket();
+  }
+
+  private proxyUrl(): string {
+    const loc = this.deps.location ?? globalThis.location;
+    const protocol = loc.protocol === 'https:' ? 'wss' : 'ws';
+    return `${protocol}://${loc.host}/api/console/ws?server=${encodeURIComponent(this.deps.identifier)}`;
   }
 
   /**
@@ -166,13 +166,8 @@ export class ConsoleSocket {
         this.deps.onEvent({ type: 'daemon', message: arg0 });
         break;
       case 'token expiring':
-        // The current socket is still authenticated; refresh in place.
-        await this.refreshToken();
         break;
       case 'token expired':
-        // The socket's auth has already lapsed — re-authing on the same socket
-        // is useless. Close it and let the exponential-backoff reconnect
-        // re-establish and re-auth on a fresh socket.
         this.ws?.close();
         break;
       case 'jwt error':
@@ -206,30 +201,7 @@ export class ConsoleSocket {
     }
   }
 
-  private async refreshToken(): Promise<void> {
-    try {
-      const creds = await this.deps.getCredentials();
-      this.send('auth', [creds.token]);
-      this.scheduleTokenRefresh();
-    } catch {
-      this.deps.onEvent({ type: 'error', message: 'Failed to refresh console token' });
-    }
-  }
-
-  private scheduleTokenRefresh(): void {
-    this.clearTokenRefreshTimer();
-    this.tokenRefreshTimer = setTimeout(() => {
-      if (!this.closedByUser) void this.refreshToken();
-    }, CONSOLE_TOKEN_REFRESH_MS);
-  }
-
-  private clearTokenRefreshTimer(): void {
-    if (this.tokenRefreshTimer) clearTimeout(this.tokenRefreshTimer);
-    this.tokenRefreshTimer = null;
-  }
-
   private handleClose(code: number): void {
-    this.clearTokenRefreshTimer();
     const suspended = code === 4409;
     this.deps.onEvent({ type: 'close', code, suspended });
 

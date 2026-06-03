@@ -2,14 +2,9 @@
 
 import { notFound } from 'next/navigation';
 import { requireUser } from '@/lib/auth/current-user';
-import {
-  requireServerAccess,
-  requireServerPermission,
-  ServerAccessDeniedError,
-} from '@/lib/authz/guard';
+import { requireServerAccess, ServerAccessDeniedError } from '@/lib/authz/guard';
 import type { AccessKind } from '@/lib/authz/visible-tabs';
-import { getWebsocketCredentials } from '@/lib/ptero/client';
-import { asIdentifier, type WebsocketCredentials } from '@/lib/ptero/types';
+import { asIdentifier } from '@/lib/ptero/types';
 
 /**
  * Resolve the viewer's access kind and permissions for a server, used to gate
@@ -35,24 +30,4 @@ export async function getConsoleAccess(
     if (error instanceof ServerAccessDeniedError) notFound();
     throw error;
   }
-}
-
-export async function getConsoleCredentials(
-  identifier: string,
-): Promise<WebsocketCredentials> {
-  const user = await requireUser();
-  const id = asIdentifier(identifier);
-
-  try {
-    await requireServerPermission(
-      { id: user.id, role: user.role, pteroUserId: user.pteroUserId },
-      id,
-      'control.console',
-    );
-  } catch {
-    notFound();
-    throw new Error('Console credentials are unavailable for this server.');
-  }
-
-  return getWebsocketCredentials(id);
 }
