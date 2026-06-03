@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
+import { prisma } from '../src/lib/db';
 
 const RESTRICTED_SERVER = '6f6f6f6f';
+const RESTRICTED_SERVER_UUID = '6f6f6f6f-0000-4000-8000-000000000000';
 
 async function login(page: Page, identifier: string, password: string) {
   await page.goto('/login');
@@ -10,17 +12,28 @@ async function login(page: Page, identifier: string, password: string) {
   await page.waitForURL('**/servers');
 }
 
-async function logout(page: Page) {
-  await page.getByRole('button', { name: '로그아웃' }).click();
-  await page.waitForURL('**/login');
-}
-
-async function syncSubuserAccess(page: Page) {
-  await login(page, 'admin', 'admin-pass');
-  await page.goto('/admin');
-  await page.getByRole('button', { name: '서브유저 접근 동기화' }).click();
-  await expect(page.getByText(/동기화 완료/)).toBeVisible();
-  await logout(page);
+async function seedRestrictedAccess() {
+  await prisma.serverAccess.upsert({
+    where: {
+      pteroUuid_serverIdentifier: {
+        pteroUuid: 'u-7',
+        serverIdentifier: RESTRICTED_SERVER,
+      },
+    },
+    update: {
+      serverUuid: RESTRICTED_SERVER_UUID,
+      serverName: 'Restricted Server',
+      permissions: [],
+      syncedAt: new Date(),
+    },
+    create: {
+      pteroUuid: 'u-7',
+      serverIdentifier: RESTRICTED_SERVER,
+      serverUuid: RESTRICTED_SERVER_UUID,
+      serverName: 'Restricted Server',
+      permissions: [],
+    },
+  });
 }
 
 async function resetWsEvents(page: Page) {
@@ -46,7 +59,7 @@ function hasFrame(
 
 test('proxy blocks unauthorized subuser power and command frames before Wings', async ({ page }) => {
   await resetWsEvents(page);
-  await syncSubuserAccess(page);
+  await seedRestrictedAccess();
 
   await login(page, 'user', 'user-pass');
   await expect(page.getByText('Restricted Server')).toBeVisible();
@@ -116,4 +129,10 @@ test('proxy blocks unauthorized subuser power and command frames before Wings', 
   const events = await wsEvents(page);
   expect(hasFrame(events, 'set state', ['start'])).toBe(false);
   expect(hasFrame(events, 'send command', ['say hi'])).toBe(false);
+});
+
+test.afterEach(async () => {
+  await prisma.serverAccess.deleteMany({
+    where: { serverIdentifier: RESTRICTED_SERVER },
+  });
 });
