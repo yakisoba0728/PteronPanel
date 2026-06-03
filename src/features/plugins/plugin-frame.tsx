@@ -49,7 +49,7 @@ export function PluginFrame({ pluginId, src }: { pluginId: string; src: string }
     <iframe
       ref={ref}
       src={src}
-      sandbox="allow-scripts allow-forms allow-popups"
+      sandbox="allow-scripts allow-forms"
       className="h-[70vh] w-full rounded-md border border-zinc-200 dark:border-zinc-800"
       title="plugin"
     />
