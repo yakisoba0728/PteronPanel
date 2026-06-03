@@ -67,6 +67,21 @@ test('user sees a registered plugin iframe tab on a server view', async ({ page 
     await expect(page).toHaveURL(new RegExp(`/servers/1a2b3c4d/plugin/.+`));
     await expect(page.locator('iframe[title="plugin"]')).toBeVisible();
     await expect(page.locator('iframe[title="plugin"]')).toHaveAttribute('src', pluginUi.url);
+
+    // CSP frame-src is dynamically scoped to this plugin's origin.
+    const pluginOrigin = new URL(pluginUi.url).origin;
+    const pluginPath = new URL(page.url()).pathname;
+    const pluginResponse = await page.goto(pluginPath);
+    const pluginCsp = pluginResponse?.headers()['content-security-policy'] ?? '';
+    expect(pluginCsp).toContain(`frame-src 'self' ${pluginOrigin}`);
+    expect(pluginCsp).toContain("frame-ancestors 'none'");
+    await expect(page.locator('iframe[title="plugin"]')).toBeVisible();
+
+    // A non-plugin page denies framing entirely.
+    const baseResponse = await page.goto('/servers/1a2b3c4d');
+    const baseCsp = baseResponse?.headers()['content-security-policy'] ?? '';
+    expect(baseCsp).toContain("frame-src 'none'");
+    expect(baseCsp).toContain("frame-ancestors 'none'");
   } finally {
     await pluginUi.close();
   }
