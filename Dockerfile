@@ -1,10 +1,12 @@
-FROM node:22-alpine AS base
+FROM node:26-alpine AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH="$PNPM_HOME:$PATH"
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PRISMA_HIDE_UPDATE_MESSAGE=1
 ENV PRISMA_SKIP_POSTINSTALL_GENERATE=1
-RUN corepack enable && corepack prepare pnpm@9.12.0 --activate && pnpm config set update-notifier false
+# Node 25+ no longer bundles Corepack in the official images, so install it
+# explicitly before enabling the pinned pnpm version.
+RUN npm install -g corepack@latest && corepack enable && corepack prepare pnpm@9.12.0 --activate && pnpm config set update-notifier false
 
 FROM base AS deps
 WORKDIR /app
