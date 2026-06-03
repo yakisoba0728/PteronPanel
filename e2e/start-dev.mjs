@@ -1,8 +1,10 @@
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { parse } from 'dotenv';
 
 const testEnv = parse(readFileSync('.env.test', 'utf8'));
+
+rmSync('.next', { recursive: true, force: true });
 
 const child = spawn('pnpm', ['dev'], {
   stdio: 'inherit',
