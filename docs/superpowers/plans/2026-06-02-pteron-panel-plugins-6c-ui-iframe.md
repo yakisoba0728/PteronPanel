@@ -412,4 +412,4 @@ git push
 ---
 
 ## Phase 6 완료
-6a(등록·토큰·스코프 API) + 6b(이벤트 webhook) + 6c(UI iframe)로 **외부 통합 플러그인 시스템** 완성. 이로써 로드맵 Phase 0–6이 전부 설계·계획 완료된다. (잔여 하드닝: CSP frame-src 동적 허용, webhook SSRF 사설IP 차단, webhook 전용 큐 — 후속 보안 태스크.)
+6a(등록·토큰·스코프 API) + 6b(이벤트 webhook) + 6c(UI iframe)로 **외부 통합 플러그인 시스템** 완성. 이로써 로드맵 Phase 0–6이 전부 설계·계획 완료된다. (잔여 하드닝: webhook SSRF 사설IP 차단, webhook 전용 큐 — 후속 보안 태스크. CSP frame-src 동적 허용은 2026-06-03 구현됨 → `docs/superpowers/specs/2026-06-03-pteron-panel-csp-frame-src-design.md`.)

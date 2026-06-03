@@ -183,7 +183,7 @@ window.addEventListener('message', async (event) => {
 
 플러그인 UI는 message origin을 자체 허용 목록으로 검증하고, 받은 `ptxc_` 토큰을 저장하지 말고 현재 iframe 세션에서만 사용하세요. `/api/ext/*`는 `ptex_`와 `ptxc_`를 모두 받지만, iframe에는 `ptxc_`만 전달해야 합니다.
 
-CSP `frame-src`를 등록된 플러그인 origin으로 동적으로 제한하는 하드닝은 후속 작업입니다. 현재 구현은 iframe sandbox와 소유자 스코프 토큰 검증으로 격리합니다.
+CSP `frame-src`를 등록된 플러그인 origin으로 동적으로 제한합니다(`server.ts`). 기본 정책은 `frame-src 'none'; frame-ancestors 'none'`이고, 플러그인 탭 라우트(`/servers/<id>/plugin/<pluginId>`)에서만 해당 플러그인의 origin을 `frame-src`로 허용합니다. iframe sandbox와 소유자 스코프 토큰 검증으로 추가 격리합니다. (전체 CSP 락다운 — `default-src`/`script-src`/`connect-src` 등 — 은 별도 후속 작업입니다.)
 
 ## 개발
 
