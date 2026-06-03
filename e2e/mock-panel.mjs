@@ -568,6 +568,11 @@ const server = createServer(async (req, res) => {
     });
   }
 
+  if (pathname === '/ws-events/reset' && method === 'POST') {
+    wsEvents.length = 0;
+    return json(res, { ok: true });
+  }
+
   if (pathname === '/ws-events') {
     return json(res, { events: wsEvents });
   }
