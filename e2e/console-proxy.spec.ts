@@ -36,11 +36,6 @@ async function seedRestrictedAccess() {
   });
 }
 
-async function resetWsEvents(page: Page) {
-  const response = await page.request.post('http://127.0.0.1:9099/ws-events/reset');
-  expect(response.ok()).toBe(true);
-}
-
 async function wsEvents(page: Page): Promise<Array<{ event: string; args?: string[] }>> {
   const response = await page.request.get('http://127.0.0.1:9099/ws-events');
   const body = (await response.json()) as { events: Array<{ event: string; args?: string[] }> };
@@ -58,8 +53,8 @@ function hasFrame(
 }
 
 test('proxy blocks unauthorized subuser power and command frames before Wings', async ({ page }) => {
-  await resetWsEvents(page);
   await seedRestrictedAccess();
+  const marker = `console-proxy-${Date.now()}-${Math.random()}`;
 
   await login(page, 'user', 'user-pass');
   await expect(page.getByText('Restricted Server')).toBeVisible();
@@ -69,7 +64,7 @@ test('proxy blocks unauthorized subuser power and command frames before Wings', 
   page.on('request', (request) => browserRequests.push(request.url()));
   page.on('websocket', (ws) => browserWsUrls.push(ws.url()));
 
-  const messages = await page.evaluate(async (identifier) => {
+  const messages = await page.evaluate(async ({ identifier, marker }) => {
     const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/console/ws?server=${encodeURIComponent(identifier)}`;
     const ws = new WebSocket(url);
     const received: Array<{ event: string; args?: string[] }> = [];
@@ -88,7 +83,7 @@ test('proxy blocks unauthorized subuser power and command frames before Wings', 
         received.push(frame);
 
         if (frame.event === 'auth success') {
-          ws.send(JSON.stringify({ event: 'send stats', args: [] }));
+          ws.send(JSON.stringify({ event: 'send stats', args: [marker] }));
           ws.send(JSON.stringify({ event: 'set state', args: ['start'] }));
           ws.send(JSON.stringify({ event: 'send command', args: ['say hi'] }));
         }
@@ -112,7 +107,7 @@ test('proxy blocks unauthorized subuser power and command frames before Wings', 
     });
 
     return received;
-  }, RESTRICTED_SERVER);
+  }, { identifier: RESTRICTED_SERVER, marker });
 
   expect(browserWsUrls).toContain(
     `ws://127.0.0.1:3000/api/console/ws?server=${RESTRICTED_SERVER}`,
@@ -123,7 +118,7 @@ test('proxy blocks unauthorized subuser power and command frames before Wings', 
   expect(messages.filter((message) => message.event === 'daemon error')).toHaveLength(2);
 
   await expect
-    .poll(async () => hasFrame(await wsEvents(page), 'send stats'))
+    .poll(async () => hasFrame(await wsEvents(page), 'send stats', [marker]))
     .toBe(true);
 
   const events = await wsEvents(page);

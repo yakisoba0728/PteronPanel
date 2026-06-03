@@ -572,11 +572,6 @@ const server = createServer(async (req, res) => {
     return json(res, { events: wsEvents });
   }
 
-  if (pathname === '/ws-events/reset' && method === 'POST') {
-    wsEvents.length = 0;
-    return json(res, { ok: true });
-  }
-
   return json(
     res,
     {
