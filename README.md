@@ -11,7 +11,21 @@ Pterodactyl Panel 1.11.x를 두 개의 마스터 키(Application API + root-admi
 
 ## Wings 설정
 
-콘솔은 브라우저가 Wings WebSocket에 직접 연결하므로, 콘솔을 쓸 모든 노드의 `/etc/pterodactyl/config.yml`에 패널 origin을 추가해야 합니다.
+콘솔은 브라우저가 Wings WebSocket에 직접 연결하지 않습니다. 브라우저는 동일 출처의 `/api/console/ws?server=...`로 연결하고, Pteron 서버가 세션과 서버 접근 권한을 확인한 뒤 서버 측에서 Wings WebSocket에 연결합니다. 따라서 브라우저는 Wings WebSocket URL이나 토큰을 받지 않습니다.
+
+리버스 프록시 뒤에서 운영하는 경우 `/api/console/ws` 경로의 WebSocket 업그레이드 헤더를 앱으로 전달해야 합니다. 예:
+
+```nginx
+location /api/console/ws {
+  proxy_pass http://pteron_app:3000;
+  proxy_http_version 1.1;
+  proxy_set_header Upgrade $http_upgrade;
+  proxy_set_header Connection "upgrade";
+  proxy_set_header Host $host;
+}
+```
+
+Wings 입장에서는 이제 브라우저가 아니라 Pteron 서버가 WebSocket 클라이언트입니다. Wings의 `allowed_origins` 동작은 배포 환경에서 확인해야 하며, Origin 검사를 사용하는 설정에서는 Pteron 서버가 보내는 origin을 허용해야 할 수 있습니다.
 
 ```yaml
 allowed_origins:
@@ -43,7 +57,7 @@ docker compose run --rm seed
 - `db`: PostgreSQL 16
 - `migrate`: Prisma migrate deploy를 앱 시작 전에 1회 실행
 - `seed`: 초기 관리자와 Pterodactyl 매핑 유저를 생성할 때 수동 실행
-- `app`: Next.js standalone 런타임
+- `app`: Next 요청 핸들러와 `/api/console/ws` WebSocket 업그레이드를 함께 처리하는 커스텀 Node 서버
 
 `APP_BASE_URL`은 실제 접속 origin과 일치해야 합니다. 리버스 프록시 뒤에 둘 경우 TLS 종료 지점의 public URL로 맞추세요.
 Docker Compose에서는 `DATABASE_URL`의 호스트가 `db`여야 합니다. 호스트 머신에서 직접 `pnpm prisma migrate dev`를 실행하는 개발 환경에서는 `.env`의 DB 호스트를 `localhost`로 바꾸세요.
@@ -65,7 +79,8 @@ Docker Compose에서는 `DATABASE_URL`의 호스트가 `db`여야 합니다. 호
 - 두 Pterodactyl 키는 가능한 경우 Pterodactyl Panel에서 앱 서버의 고정 IP만 허용하도록 제한합니다.
 - 앱 서버의 egress는 Pterodactyl Panel, Wings 노드, 데이터베이스 등 필요한 대상만 허용합니다.
 - HTTPS를 강제하고 `APP_BASE_URL`은 실제 public origin과 정확히 일치하게 설정합니다.
-- 콘솔을 사용하는 모든 Wings 노드의 `allowed_origins`에 Pteron Panel의 HTTPS origin을 추가합니다.
+- 리버스 프록시는 `/api/console/ws`의 WebSocket 업그레이드를 커스텀 Node 서버로 전달해야 합니다.
+- 콘솔을 사용하는 모든 Wings 노드의 `allowed_origins`는 Pteron 서버 측 WebSocket 연결의 origin 동작에 맞게 검증하고 필요 시 허용 origin을 추가합니다.
 - `SESSION_SECRET`은 충분히 긴 무작위 값으로 설정하고 저장소나 이미지에 포함하지 않습니다.
 - 서브유저 권한 변경이 Pterodactyl에서 발생한 뒤에는 정기적으로 접근 스코프 동기화를 실행합니다.
 

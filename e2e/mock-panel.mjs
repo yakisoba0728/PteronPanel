@@ -34,6 +34,17 @@ const SHARED = {
   },
 };
 
+const RESTRICTED = {
+  object: 'server',
+  attributes: {
+    id: 15,
+    identifier: '6f6f6f6f',
+    uuid: '6f6f6f6f-0000-4000-8000-000000000000',
+    name: 'Restricted Server',
+    node: 'Node 04',
+  },
+};
+
 const wsEvents = [];
 const createdServers = [];
 
@@ -273,7 +284,7 @@ const server = createServer(async (req, res) => {
 
   if (pathname === '/api/client' || pathname === '/api/client/') {
     if (url.searchParams.get('type') === 'admin-all') {
-      return json(res, list([OWNED, OTHER, SHARED]));
+      return json(res, list([OWNED, OTHER, SHARED, RESTRICTED]));
     }
 
     return json(res, list([OWNED]));
@@ -295,6 +306,15 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/client/servers/1a2b3c4d/websocket') {
+    return json(res, {
+      data: {
+        token: 'fake-jwt',
+        socket: 'ws://127.0.0.1:9099/ws',
+      },
+    });
+  }
+
+  if (pathname === '/api/client/servers/6f6f6f6f/websocket') {
     return json(res, {
       data: {
         token: 'fake-jwt',
@@ -426,6 +446,24 @@ const server = createServer(async (req, res) => {
             email: 'user@example.com',
             image: '',
             permissions: ['control.console'],
+          },
+        },
+      ]),
+    );
+  }
+
+  if (pathname === '/api/client/servers/6f6f6f6f/users' && method === 'GET') {
+    return json(
+      res,
+      list([
+        {
+          object: 'server_subuser',
+          attributes: {
+            uuid: 'u-7',
+            username: 'user',
+            email: 'user@example.com',
+            image: '',
+            permissions: [],
           },
         },
       ]),

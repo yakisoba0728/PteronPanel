@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CONSOLE_TOKEN_REFRESH_MS, ConsoleSocket, type ConsoleEvent } from './socket';
+import { ConsoleSocket, type ConsoleEvent } from './socket';
 
 class FakeWebSocket {
   static instances: FakeWebSocket[] = [];
@@ -36,15 +36,15 @@ class FakeWebSocket {
   }
 }
 
-function setup(creds = { token: 'tok-1', socket: 'wss://node/api/servers/uuid/ws' }) {
+function setup() {
   const events: ConsoleEvent[] = [];
-  const getCredentials = vi.fn().mockResolvedValue(creds);
   const sock = new ConsoleSocket({
-    getCredentials,
+    identifier: '1a2b3c4d',
     onEvent: (event) => events.push(event),
     WebSocketImpl: FakeWebSocket as unknown as { new (url: string): WebSocket },
+    location: { protocol: 'https:', host: 'panel.example.test' },
   });
-  return { sock, events, getCredentials };
+  return { sock, events };
 }
 
 describe('ConsoleSocket', () => {
@@ -53,12 +53,13 @@ describe('ConsoleSocket', () => {
     vi.useRealTimers();
   });
 
-  it('authenticates with the token on open', async () => {
+  it('opens the same-origin proxy websocket for the server identifier', async () => {
     const { sock } = setup();
     await sock.connect();
     const ws = FakeWebSocket.instances.at(-1)!;
+    expect(ws.url).toBe('wss://panel.example.test/api/console/ws?server=1a2b3c4d');
     ws.open();
-    expect(JSON.parse(ws.sent[0])).toEqual({ event: 'auth', args: ['tok-1'] });
+    expect(ws.sent).toEqual([]);
   });
 
   it('queues log and stats requests until the socket is open', async () => {
@@ -70,7 +71,6 @@ describe('ConsoleSocket', () => {
     expect(ws.sent).toEqual([]);
     ws.open();
     expect(ws.sent.map((raw) => JSON.parse(raw))).toEqual([
-      { event: 'auth', args: ['tok-1'] },
       { event: 'send logs', args: [] },
       { event: 'send stats', args: [] },
     ]);
@@ -102,34 +102,13 @@ describe('ConsoleSocket', () => {
     });
   });
 
-  it('refreshes the token on "token expiring"', async () => {
-    const { sock, getCredentials } = setup();
+  it('does not send browser auth frames on "token expiring"', async () => {
+    const { sock } = setup();
     await sock.connect();
     const ws = FakeWebSocket.instances.at(-1)!;
     ws.open();
-    getCredentials.mockResolvedValueOnce({
-      token: 'tok-2',
-      socket: 'wss://node/api/servers/uuid/ws',
-    });
     ws.emit('token expiring');
-    await vi.waitFor(() => {
-      expect(JSON.parse(ws.sent.at(-1)!)).toEqual({ event: 'auth', args: ['tok-2'] });
-    });
-  });
-
-  it('refreshes the token proactively', async () => {
-    vi.useFakeTimers();
-    const { sock, getCredentials } = setup();
-    await sock.connect();
-    const ws = FakeWebSocket.instances.at(-1)!;
-    ws.open();
-    getCredentials.mockResolvedValueOnce({
-      token: 'tok-2',
-      socket: 'wss://node/api/servers/uuid/ws',
-    });
-    await vi.advanceTimersByTimeAsync(CONSOLE_TOKEN_REFRESH_MS);
-    expect(JSON.parse(ws.sent.at(-1)!)).toEqual({ event: 'auth', args: ['tok-2'] });
-    vi.useRealTimers();
+    expect(ws.sent).toEqual([]);
   });
 
   it('sends commands and power signals', async () => {
@@ -213,7 +192,7 @@ describe('ConsoleSocket', () => {
     const reconnected = FakeWebSocket.instances.at(-1)!;
     expect(reconnected).not.toBe(first);
     reconnected.open();
-    expect(JSON.parse(reconnected.sent[0])).toEqual({ event: 'auth', args: ['tok-1'] });
+    expect(reconnected.sent).toEqual([]);
     vi.useRealTimers();
   });
 });

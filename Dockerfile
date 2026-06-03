@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH="$PNPM_HOME:$PATH"
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -23,9 +23,14 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-COPY --from=build /app/.next/standalone ./
-COPY --from=build /app/.next/static ./.next/static
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=build /app/next.config.mjs ./next.config.mjs
+COPY --from=build /app/tsconfig.json ./tsconfig.json
+COPY --from=build /app/server.ts ./server.ts
+COPY --from=build /app/src ./src
+COPY --from=build /app/.next ./.next
 COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=build /app/node_modules ./node_modules
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["pnpm", "start"]
