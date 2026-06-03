@@ -1,4 +1,4 @@
-import { createServer } from 'node:http';
+import { createServer, type ServerResponse } from 'node:http';
 import { parse } from 'node:url';
 import next from 'next';
 import WebSocket, { WebSocketServer } from 'ws';
@@ -7,6 +7,13 @@ import { validateSessionToken } from '@/lib/auth/session';
 import { SESSION_COOKIE } from '@/lib/auth/constants';
 import { resolveAccessibleServers } from '@/lib/authz/access';
 import { bridgeConsole } from '@/lib/console/proxy';
+import {
+  FRAME_CSP_BASELINE,
+  buildFrameCsp,
+  pluginIdFromPath,
+  shouldSetCsp,
+} from '@/lib/security/csp';
+import { getEnabledPluginUiOrigin } from '@/lib/plugins/frame-origin';
 
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
@@ -51,8 +58,26 @@ function isAllowedWsOrigin(origin: string | undefined): boolean {
   }
 }
 
+// Frame-only CSP. Deny framing everywhere except the plugin tab route, which
+// may frame its own registered plugin origin. Set before delegating to Next so
+// the header rides the document response. Fail-closed to baseline on any error.
+async function applyCspHeader(res: ServerResponse, pathname: string): Promise<void> {
+  try {
+    if (!shouldSetCsp(pathname)) return;
+    const pluginId = pluginIdFromPath(pathname);
+    const origin = pluginId ? await getEnabledPluginUiOrigin(pluginId) : null;
+    res.setHeader('Content-Security-Policy', buildFrameCsp(origin));
+  } catch {
+    res.setHeader('Content-Security-Policy', FRAME_CSP_BASELINE);
+  }
+}
+
 app.prepare().then(() => {
-  const server = createServer((req, res) => handle(req, res, parse(req.url!, true)));
+  const server = createServer(async (req, res) => {
+    const parsed = parse(req.url!, true);
+    await applyCspHeader(res, parsed.pathname ?? '/');
+    handle(req, res, parsed);
+  });
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_WS_PAYLOAD });
 
   server.on('upgrade', async (req, socket, head) => {
