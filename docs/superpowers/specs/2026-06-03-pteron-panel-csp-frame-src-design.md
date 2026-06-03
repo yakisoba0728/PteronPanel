@@ -84,7 +84,11 @@ Phase 6c에서 소유자 플러그인 UI를 `<iframe>`로 임베드하는 탭을
 
 - 경로에서 `pluginId` 추출: 정규식 `^/servers/[^/]+/plugin/([^/]+)/?$`의 capture group 1.
 - 조회: `prisma.plugin.findFirst({ where: { id: pluginId, enabled: true, uiTabUrl: { not: null } }, select: { uiTabUrl: true } })`.
-  성공 시 `new URL(uiTabUrl).origin` 반환, 아니면 `null`.
+  성공 시 `new URL(uiTabUrl).origin`을 **살균**해 반환, 아니면 `null`.
+- **origin 살균**(헤더 인젝션 방지): 도출한 origin이 깨끗한 `scheme://host[:port]`
+  (정규식 `^https?://([a-z0-9.-]+|\[[0-9a-f:]+\])(:\d+)?$`)일 때만 반환하고, 그 외( `*`·`;`·`,`·공백
+  등 CSP 의미 문자, 또는 비-http(s) opaque origin `"null"`)는 `null`로 떨어뜨린다. 등록 검증이
+  https-only이긴 하나, `frame-src` 헤더에 들어가는 값은 emission 시점에서 한 번 더 보장한다.
 - **owner 스코프 안 함**: origin 문자열은 비밀이 아니고(외부 URL), 페이지 자체가
   `ownerId: user.id`로 `notFound()`를 강제한다. 타 유저의 pluginId로 접근해도 `frame-src`엔
   그 origin이 들어가지만 페이지가 404라 iframe이 렌더되지 않음 → 누출 없음. (세션을 미들웨어/서버에서
@@ -129,6 +133,28 @@ Phase 6c에서 소유자 플러그인 UI를 `<iframe>`로 임베드하는 탭을
 
   `applyCspHeader`는 내부 try/catch로 절대 reject하지 않으므로 `handle()`은 항상 실행된다.
   업그레이드(WS) 핸들러는 변경 없음.
+
+### 4.6 SPA soft-nav 비호환과 해소 (리뷰 발견)
+
+**문제:** `frame-src`는 **문서(document) 수명 동안 고정**되는 정책이다(응답 헤더로 한 번 설정되면
+그 문서가 살아있는 한 클라이언트 측 라우팅으로 바뀌지 않는다). 이 앱의 서버뷰 탭은 Next `<Link>`로
+**soft nav**(문서 교체 없는 클라이언트 전환)된다. 따라서 사용자가 `/servers/<id>`(→`frame-src 'none'`)를
+로드한 뒤 플러그인 탭을 클릭하면 문서가 그대로라 원래의 `'none'`이 적용되어 **iframe이 차단된다**
+(브라우저 콘솔: `Refused/Framing ... violates ... frame-src 'none'`). 직접 URL 로드/새로고침일 때만 동작한다.
+e2e가 헤더를 `page.goto`(하드 내비)로만 확인하고 iframe의 실제 *로드*를 단언하지 않아 최초 구현에서 놓쳤다.
+
+**해소(채택):** 플러그인 탭 링크만 **전체 내비게이션**(`<a href>`)으로 렌더해, 각 플러그인 탭이 자기
+origin만 허용하는 **새 문서**로 로드되게 한다(`src/app/(panel)/servers/[id]/layout.tsx`에서 탭 key가
+`plugin:`로 시작하면 `<a>`, 그 외는 `<Link>`). per-route 타이트 CSP를 유지하면서 iframe이 정상 로드된다.
+대가는 플러그인 탭 진입 시 전체 리로드(허용 가능 — iframe 뷰는 본래 무겁다).
+
+**대안(미채택): 소유자 스코프 allowlist.** 모든 인증 문서에 그 사용자의 enabled 플러그인 origin 전체를
+`frame-src`로 실으면 soft-nav UX를 유지하나, frame-src가 (자기 소유) 여러 origin으로 넓어지고 문서 로드마다
+세션검증+`findMany`가 필요하다. 보안 손실은 작지만(전부 자기 소유 origin) 본 작업의 "정확 1개 origin" 의도와
+멀어져 미채택.
+
+**회귀 방지:** e2e는 실제 탭-클릭 경로로 진입해 (a) 내비 응답의 `frame-src 'self' <origin>`, (b) iframe 로드,
+(c) **CSP 위반 콘솔 메시지 0건**을 단언한다. 탭이 다시 soft-nav로 바뀌면 (c)에서 실패한다.
 
 ## 5. 대안 및 기각 사유
 
