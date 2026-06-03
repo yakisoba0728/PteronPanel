@@ -52,6 +52,15 @@ test('user sees a registered plugin iframe tab on a server view', async ({ page 
   const pluginUi = await listenForPluginUi();
   const label = `Iframe E2E ${Date.now()}`;
 
+  // CSP framing violations surface as console errors; the iframe must load
+  // through the real UI path (clicking the tab), so this array must stay empty.
+  const cspViolations: string[] = [];
+  page.on('console', (message) => {
+    if (/content security policy|refused to frame|violates/i.test(message.text())) {
+      cspViolations.push(message.text());
+    }
+  });
+
   try {
     await login(page, 'user', 'user-pass');
     await page.goto('/account/plugins');
@@ -61,12 +70,34 @@ test('user sees a registered plugin iframe tab on a server view', async ({ page 
     await page.click('button:has-text("등록")');
     await expect(page.getByText('다시 표시되지 않습니다')).toBeVisible();
 
-    await page.goto('/servers/1a2b3c4d');
-    await page.getByRole('link', { name: label }).click();
+    // A non-plugin document denies framing entirely.
+    const baseResponse = await page.goto('/servers/1a2b3c4d');
+    const baseCsp = baseResponse?.headers()['content-security-policy'] ?? '';
+    expect(baseCsp).toContain("frame-src 'none'");
+    expect(baseCsp).toContain("frame-ancestors 'none'");
+
+    // Clicking a plugin tab is a full navigation, so the per-document CSP
+    // applies: the new document scopes frame-src to this plugin's origin.
+    const pluginOrigin = new URL(pluginUi.url).origin;
+    const [pluginResponse] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          /\/servers\/1a2b3c4d\/plugin\//.test(response.url()) &&
+          response.request().resourceType() === 'document',
+      ),
+      page.getByRole('link', { name: label }).click(),
+    ]);
+    const pluginCsp = pluginResponse.headers()['content-security-policy'] ?? '';
+    expect(pluginCsp).toContain(`frame-src 'self' ${pluginOrigin}`);
+    expect(pluginCsp).toContain("frame-ancestors 'none'");
 
     await expect(page).toHaveURL(new RegExp(`/servers/1a2b3c4d/plugin/.+`));
     await expect(page.locator('iframe[title="plugin"]')).toBeVisible();
     await expect(page.locator('iframe[title="plugin"]')).toHaveAttribute('src', pluginUi.url);
+
+    // The iframe actually loaded — no frame-src violation occurred via the UI.
+    await page.waitForTimeout(500);
+    expect(cspViolations).toEqual([]);
   } finally {
     await pluginUi.close();
   }
