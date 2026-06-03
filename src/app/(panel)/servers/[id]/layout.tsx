@@ -59,15 +59,22 @@ export default async function ServerLayout({
     <div>
       <h1 className="text-xl font-semibold">{name}</h1>
       <nav className="mt-3 mb-5 flex gap-2 border-b border-zinc-200 dark:border-zinc-800">
-        {tabs.map((tab) => (
-          <Link
-            key={tab.key}
-            href={tab.href}
-            className="px-3 py-2 text-sm hover:text-indigo-600"
-          >
-            {tab.label}
-          </Link>
-        ))}
+        {tabs.map((tab) => {
+          const className = 'px-3 py-2 text-sm hover:text-indigo-600';
+          // Plugin tabs frame an external origin, and CSP frame-src is scoped
+          // per document in server.ts. A soft client-side transition keeps the
+          // previous document's frame-src ('none'), which would block the
+          // iframe — so plugin tabs must load as a full navigation.
+          return tab.key.startsWith('plugin:') ? (
+            <a key={tab.key} href={tab.href} className={className}>
+              {tab.label}
+            </a>
+          ) : (
+            <Link key={tab.key} href={tab.href} className={className}>
+              {tab.label}
+            </Link>
+          );
+        })}
       </nav>
       {children}
     </div>
