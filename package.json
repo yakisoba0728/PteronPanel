@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=26"
+  },
   "scripts": {
     "dev": "tsx watch server.ts",
     "build": "NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS=--disable-warning=DEP0205 next build",
