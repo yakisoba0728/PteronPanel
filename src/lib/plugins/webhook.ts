@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { assertSafeWebhookUrl } from './url-safety';
+import { assertSafeWebhookUrl, safeFetch } from './url-safety';
 
 export interface DeliverResult {
   ok: boolean;
@@ -22,9 +22,9 @@ export async function deliverWebhook(
   payload: unknown,
   opts: { retries?: number; timeoutMs?: number } = {},
 ): Promise<DeliverResult> {
-  let safeUrl: URL;
+  // Fast-fail before entering the retry loop if the URL is statically unsafe.
   try {
-    safeUrl = await assertSafeWebhookUrl(url);
+    await assertSafeWebhookUrl(url);
   } catch (err) {
     return { ok: false, attempts: 0, error: err instanceof Error ? err.message : 'unsafe_url' };
   }
@@ -38,7 +38,10 @@ export async function deliverWebhook(
     const timer = setTimeout(() => ac.abort(), opts.timeoutMs ?? 10_000);
 
     try {
-      const res = await fetch(safeUrl, {
+      // safeFetch re-resolves + re-validates + pins the validated IP at the
+      // socket, closing the DNS-rebind window for this attempt. redirect:
+      // 'manual' prevents following a 3xx to an unvalidated location.
+      const res = await safeFetch(url, {
         method: 'POST',
         redirect: 'manual',
         headers: {
