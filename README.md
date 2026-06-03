@@ -13,6 +13,8 @@ Pterodactyl Panel 1.11.x를 두 개의 마스터 키(Application API + root-admi
 
 콘솔은 브라우저가 Wings WebSocket에 직접 연결하지 않습니다. 브라우저는 동일 출처의 `/api/console/ws?server=...`로 연결하고, Pteron 서버가 세션과 서버 접근 권한을 확인한 뒤 서버 측에서 Wings WebSocket에 연결합니다. 따라서 브라우저는 Wings WebSocket URL이나 토큰을 받지 않습니다.
 
+콘솔 WebSocket 업그레이드는 엄격한 동일 출처(strict same-origin) 검사를 적용합니다. 브라우저가 보내는 `Origin` 헤더가 `APP_BASE_URL`의 origin(scheme + host + port)과 정확히 일치해야 하며, 그렇지 않으면 업그레이드가 거부됩니다. 따라서 `APP_BASE_URL`은 사용자가 실제로 접속하는 패널의 public origin과 정확히 같아야 합니다(예: `https://pteron.example.com`을 통해 접속한다면 `APP_BASE_URL`도 동일해야 하며, `localhost`나 다른 호스트/포트로 두면 콘솔 WebSocket이 연결되지 않습니다).
+
 리버스 프록시 뒤에서 운영하는 경우 `/api/console/ws` 경로의 WebSocket 업그레이드 헤더를 앱으로 전달해야 합니다. 예:
 
 ```nginx
@@ -78,7 +80,7 @@ Docker Compose에서는 `DATABASE_URL`의 호스트가 `db`여야 합니다. 호
 - `PTERO_APP_KEY`와 `PTERO_CLIENT_KEY`는 서버 전용으로만 보관하고, 브라우저 응답/번들/로그에 노출하지 않습니다.
 - 두 Pterodactyl 키는 가능한 경우 Pterodactyl Panel에서 앱 서버의 고정 IP만 허용하도록 제한합니다.
 - 앱 서버의 egress는 Pterodactyl Panel, Wings 노드, 데이터베이스 등 필요한 대상만 허용합니다.
-- HTTPS를 강제하고 `APP_BASE_URL`은 실제 public origin과 정확히 일치하게 설정합니다.
+- HTTPS를 강제하고 `APP_BASE_URL`은 실제 public origin(scheme + host + port)과 정확히 일치하게 설정합니다. 콘솔 WebSocket은 이 값으로 엄격한 동일 출처 검사를 수행하므로, 불일치 시 콘솔이 연결되지 않습니다.
 - 리버스 프록시는 `/api/console/ws`의 WebSocket 업그레이드를 커스텀 Node 서버로 전달해야 합니다.
 - 콘솔을 사용하는 모든 Wings 노드의 `allowed_origins`는 Pteron 서버 측 WebSocket 연결의 origin 동작에 맞게 검증하고 필요 시 허용 origin을 추가합니다.
 - `SESSION_SECRET`은 충분히 긴 무작위 값으로 설정하고 저장소나 이미지에 포함하지 않습니다.

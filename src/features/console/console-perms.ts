@@ -15,9 +15,10 @@ export interface ConsoleControls {
  * permissions: kill maps to `control.stop` (same as Wings), and the command
  * input maps to `control.console`.
  *
- * NOTE: This is a UI mitigation only. A subuser lacking a permission could
- * still drive Wings via the websocket token, so true server-side enforcement
- * (a console WS proxy) is tracked separately.
+ * NOTE: The console WS proxy now enforces these permissions server-side on
+ * every inbound Wings frame (the browser never receives the Wings token), so
+ * this UI gating is defense-in-depth on top of that enforcement rather than
+ * the sole mitigation.
  */
 export function consoleControls(
   accessKind: AccessKind,

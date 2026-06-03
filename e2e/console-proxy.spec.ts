@@ -52,6 +52,12 @@ function hasFrame(
   );
 }
 
+test.beforeEach(async ({ request }) => {
+  // Clear the mock server's never-reset frame accumulator so each run starts
+  // from a clean slate and negative assertions can't be polluted across runs.
+  await request.post('http://127.0.0.1:9099/ws-events/reset');
+});
+
 test('proxy blocks unauthorized subuser power and command frames before Wings', async ({ page }) => {
   await seedRestrictedAccess();
   const marker = `console-proxy-${Date.now()}-${Math.random()}`;
